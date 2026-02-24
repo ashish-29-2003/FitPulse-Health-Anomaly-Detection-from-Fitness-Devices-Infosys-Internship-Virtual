@@ -19,9 +19,9 @@ def preprocess_and_resample(df):
         lambda x: x.interpolate(method="linear").ffill().bfill()
     )
     
-    # Step 3: Resample to Daily Intervals ('D') instead of Hourly ('H')
+    # Step 3: Resample to Daily Intervals ('D')
     df = df.set_index("Date")
-    # Resampling by Day to keep row counts manageable and closer to original size
+    # Resampling by Day to keep row counts consistent with your original dataset
     df_resampled = df.groupby("User_ID")[numeric_cols].resample('D').mean().reset_index()
     
     # Final cleanup for any gaps created by daily resampling
@@ -35,6 +35,7 @@ def main():
     st.markdown("---")
 
     # --- STEP 1: DATA INGESTION ---
+    # Requirement: Import health data from fitness trackers in CSV format
     with st.expander("Step 1: Data Ingestion", expanded=True):
         st.subheader("Upload Fitness Dataset")
         uploaded_file = st.file_uploader("Choose a CSV file", type=["csv"])
@@ -48,6 +49,7 @@ def main():
             return
 
     # --- STEP 2: CLEANING & NORMALIZATION ---
+    # Requirement: Clean and normalize timestamps, interpolate missing values
     with st.expander("Step 2: Cleaning & Normalization", expanded=False):
         st.subheader("Data Processing Results")
         
@@ -65,9 +67,10 @@ def main():
             st.dataframe(df_processed.head(10), use_container_width=True)
 
     # --- STEP 3: TIME-SERIES RESAMPLING ---
+    # Requirement: Align time intervals to consistent frequency
     with st.expander("Step 3: Time-Series Resampling (Daily)", expanded=False):
         st.subheader("Consistent Interval View")
-        st.write("Data aligned to consistent daily intervals to prevent excessive row generation.")
+        st.write("Data aligned to consistent daily intervals.")
         
         # Display the final resampled dataframe
         st.dataframe(df_processed, use_container_width=True)
@@ -75,7 +78,29 @@ def main():
         # Summary metrics
         m1, m2 = st.columns(2)
         m1.metric("Final Row Count", len(df_processed))
+        m2.metric("Target Frequency", "Daily ('D')")
+
+   # --- STEP 4: REPORT GENERATION ---
+    with st.expander("Step 4: Generate Downloadable Reports", expanded=True):
+        st.subheader("Export Preprocessing Summary")
         
+        # ... (Report Summary Table code)
+        
+        # Convert processed data to CSV for download
+        # Now df_processed includes 'User_ID' and 'Date' as columns
+        csv = df_processed.to_csv(index=False).encode('utf-8')
+        
+       
+        
+        
+        # Streamlit Download Button
+        st.download_button(
+            label="📥 Download Cleaned Dataset (CSV)",
+            data=csv,
+            file_name='fitpulse_preprocessed_report.csv',
+            mime='text/csv',
+            help="Click to download the time-normalized and cleaned fitness data."
+        )
 
 if __name__ == "__main__":
     main()
