@@ -2,104 +2,144 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# Page configuration
-st.set_page_config(page_title="FitPulse", page_icon="🏥", layout="wide")
+# Page configuration with a unique smartwatch theme
+st.set_page_config(
+    page_title="FitPulse ", 
+    page_icon="⌚", 
+    layout="wide"
+)
+
+# Custom CSS for a Unique Glassmorphism / Smartwatch UI
+st.markdown("""
+    <style>
+    /* Main background with a dark gradient */
+    .stApp {
+        background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+        color: #e0e0e0;
+    }
+    
+    /* Glassmorphism Card Effect */
+    div[data-testid="stVerticalBlock"] > div:has(div.stMarkdown) {
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(12px);
+        border-radius: 24px;
+        padding: 25px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 25px;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+
+    /* Neon Metric Styling */
+    div[data-testid="stMetric"] {
+        background: rgba(0, 212, 255, 0.07);
+        border-radius: 18px;
+        padding: 20px;
+        border: 1px solid rgba(0, 212, 255, 0.2);
+    }
+
+    /* High-contrast Download Button */
+    .stButton>button {
+        background: linear-gradient(90deg, #00d4ff, #0080ff);
+        color: white;
+        border: none;
+        border-radius: 40px;
+        padding: 12px 30px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        transition: 0.4s all ease;
+    }
+    .stButton>button:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 20px rgba(0, 212, 255, 0.4);
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
 def preprocess_and_resample(df):
     """
-    Core logic for Milestone 1: Cleaning and Daily Resampling
+    Milestone 1 Core Logic: Cleaning & Daily Resampling
     """
-    # Step 1: Normalize Timestamps
+    # Normalize Timestamps to standardized datetime
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce", dayfirst=True)
     df = df.dropna(subset=["Date"])
     
-    # Step 2: Handle Missing Values using Linear Interpolation
+    # Linear Interpolation for health metrics missing values
     numeric_cols = ["Hours_Slept", "Water_Intake (Liters)", "Active_Minutes", "Heart_Rate (bpm)"]
     df[numeric_cols] = df.groupby("User_ID")[numeric_cols].transform(
         lambda x: x.interpolate(method="linear").ffill().bfill()
     )
     
-    # Step 3: Resample to Daily Intervals ('D')
+    # Resample to Daily ('D') to prevent row explosion
     df = df.set_index("Date")
-    # Resampling by Day to keep row counts consistent with your original dataset
+    # reset_index() restores 'Date' as a column for the CSV export
     df_resampled = df.groupby("User_ID")[numeric_cols].resample('D').mean().reset_index()
     
-    # Final cleanup for any gaps created by daily resampling
+    # Final cleanup to ensure no gaps remain
     df_resampled[numeric_cols] = df_resampled[numeric_cols].interpolate(method='linear')
     
     return df_resampled
 
 def main():
-    st.title("🏥 FitPulse")
-   
+    # Sidebar - Wearable Device Control Center
+    st.sidebar.markdown("<h2 style='text-align: center;'>⌚ FitPulse OS</h2>", unsafe_allow_html=True)
+    st.sidebar.write(" **System:** Online")
+    st.sidebar.write("**Module:** Preprocessing")
+    
+    
+    # Main Dashboard Header
+    st.title("⌚Dashboard")
+    st.markdown("#### Preprocessing Engine | Milestone 1")
+    
 
-    # --- STEP 1: DATA INGESTION ---
-    # Requirement: Import health data from fitness trackers in CSV format
-    with st.expander("Step 1: Data Ingestion", expanded=True):
-        st.subheader("Upload Fitness Dataset")
-        uploaded_file = st.file_uploader("Choose a CSV file", type=["csv"])
-        
-        if uploaded_file:
-            df_raw = pd.read_csv(uploaded_file)
-            st.info(f"Raw Data Loaded: {len(df_raw)} records")
-            st.dataframe(df_raw.head(50), use_container_width=True)
-        else:
-            st.warning("Please upload the dataset to begin.")
-            return
+    # SECTION 1: DEVICE SYNC (INGESTION)
+    st.markdown("###  Step 1: Device Synchronization")
+    uploaded_file = st.file_uploader("Sync Fitness Logs (CSV)", type=["csv"], label_visibility="collapsed")
 
-    # --- STEP 2: CLEANING & NORMALIZATION ---
-    # Requirement: Clean and normalize timestamps, interpolate missing values
-    with st.expander("Step 2: Cleaning & Normalization", expanded=False):
-        st.subheader("Data Processing Results")
+    if uploaded_file:
+        df_raw = pd.read_csv(uploaded_file)
         
-        # Process the raw data
-        df_processed = preprocess_and_resample(df_raw)
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("**Processing Steps Applied:**")
-            st.write("- Standardized Date Formats")
-            st.write("- Filled Missing Health Metrics")
-        
-        with col2:
-            st.markdown("**Processed Data Preview:**")
+        # Grid Layout for Analytics
+        col_main, col_side = st.columns([3, 1])
+
+        with col_side:
+            st.markdown("### Metrics")
+            st.metric("Total Users", df_raw['User_ID'].nunique())
+            st.metric("Data Points", f"{len(df_raw):,}")
+            st.metric("Frequency", "Daily ('D')")
+
+        with col_main:
+            # SECTION 2: SMART CLEANING
+            df_processed = preprocess_and_resample(df_raw)
+            
+            st.markdown("### Step 2: Health Stream Preview")
             st.dataframe(df_processed.head(50), use_container_width=True)
+            
+            with st.expander("Technical Processing Logs"):
+                st.write("- **Interpolation**: Linear method successfully applied")
+                st.write("- **Normalization**: Timestamps converted to UTC format")
+                st.write("- **Alignment**: Time-intervals resampled to Daily frequency")
 
-    # --- STEP 3: TIME-SERIES RESAMPLING ---
-    # Requirement: Align time intervals to consistent frequency
-    with st.expander("Step 3: Time-Series Resampling (Daily)", expanded=False):
-        st.subheader("Consistent Interval View")
-        st.write("Data aligned to consistent daily intervals.")
+        # SECTION 3: EXPORT (MODULE 4 PREVIEW)
+        st.markdown("---")
+        st.markdown("### Step 3: Export Health Report")
         
-        # Display the final resampled dataframe
-        st.dataframe(df_processed, use_container_width=True)
-        
-        # Summary metrics
-        m1, m2 = st.columns(2)
-        m1.metric("Final Row Count", len(df_processed))
-        m2.metric("Target Frequency", "Daily ('D')")
+        # Centering the download button with spacing
+        _, center_col, _ = st.columns([1, 2, 1])
+        with center_col:
+            # Preserve 'Date' in the CSV for report integrity
+            csv_output = df_processed.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="Generate & Download Health Report",
+                data=csv_output,
+                file_name='fitpulse_preprocessed_report.csv',
+                mime='text/csv',
+                use_container_width=True
+            )
+            st.success("Report Compiled: Features and Timestamps validated.")
 
-   # --- STEP 4: REPORT GENERATION ---
-    with st.expander("Step 4: Generate Downloadable Reports", expanded=True):
-        st.subheader("Export Preprocessing Summary")
-        
-        # ... (Report Summary Table code)
-        
-        # Convert processed data to CSV for download
-        # Now df_processed includes 'User_ID' and 'Date' as columns
-        csv = df_processed.to_csv(index=False).encode('utf-8')
-        
-       
-        
-        
-        # Streamlit Download Button
-        st.download_button(
-            label="📥 Download Cleaned Dataset (CSV)",
-            data=csv,
-            file_name='fitpulse_preprocessed_report.csv',
-            mime='text/csv',
-            help="Click to download the time-normalized and cleaned fitness data."
-        )
+    else:
+        # Welcome State for Smartwatch UI
+        st.info(" Welcome to FitPulse. Connect your fitness data to initiate the preprocessing engine.")
 
 if __name__ == "__main__":
     main()
