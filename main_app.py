@@ -2,90 +2,80 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# Page Configuration
-st.set_page_config(page_title="FitPulse Anomaly Detection", page_icon="🏥", layout="wide")
+# Page configuration
+st.set_page_config(page_title="FitPulse - Milestone 1", page_icon="🏥", layout="wide")
 
 def preprocess_and_resample(df):
     """
-    Core logic for Milestone 1: Cleaning, Normalizing, and Resampling
+    Core logic for Milestone 1: Cleaning and Daily Resampling
     """
-    # 1. Normalize Timestamps
+    # Step 1: Normalize Timestamps
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce", dayfirst=True)
     df = df.dropna(subset=["Date"])
     
-    # 2. Handle Missing Values using Linear Interpolation
+    # Step 2: Handle Missing Values using Linear Interpolation
     numeric_cols = ["Hours_Slept", "Water_Intake (Liters)", "Active_Minutes", "Heart_Rate (bpm)"]
     df[numeric_cols] = df.groupby("User_ID")[numeric_cols].transform(
         lambda x: x.interpolate(method="linear").ffill().bfill()
     )
     
-    # 3. Resample to 1-Hour Granularity
+    # Step 3: Resample to Daily Intervals ('D') instead of Hourly ('H')
     df = df.set_index("Date")
-    df_resampled = df.groupby("User_ID")[numeric_cols].resample('H').mean().reset_index()
+    # Resampling by Day to keep row counts manageable and closer to original size
+    df_resampled = df.groupby("User_ID")[numeric_cols].resample('D').mean().reset_index()
     
-    # Final cleanup for any gaps created by resampling
+    # Final cleanup for any gaps created by daily resampling
     df_resampled[numeric_cols] = df_resampled[numeric_cols].interpolate(method='linear')
     
     return df_resampled
 
 def main():
-    # Sidebar for project info
-    st.sidebar.title("FitPulse Project")
-    st.sidebar.info("Milestone 1: Data Collection & Preprocessing")
-    
-    st.title(" FitPulse: Health Anomaly Detection")
-    st.subheader("Interactive Preprocessing Dashboard")
+    st.title("🏥 FitPulse: Health Anomaly Detection")
+    st.markdown("## Milestone 1: Data Collection & Preprocessing")
     st.markdown("---")
 
-    # Step 1: File Upload UI
-    st.write("### Step 1: Data Ingestion")
-    uploaded_file = st.file_uploader("Upload Fitness Watch Data (CSV)", type=["csv"])
-
-    if uploaded_file:
-        # Load Data
-        df_raw = pd.read_csv(uploaded_file)
+    # --- STEP 1: DATA INGESTION ---
+    with st.expander("Step 1: Data Ingestion", expanded=True):
+        st.subheader("Upload Fitness Dataset")
+        uploaded_file = st.file_uploader("Choose a CSV file", type=["csv"])
         
-        # Display Metrics for a 'Dashboard' feel
-        m1, m2, m3 = st.columns(3)
-        with m1:
-            st.metric("Total Records", len(df_raw))
-        with m2:
-            st.metric("Users Found", df_raw['User_ID'].nunique())
-        with m3:
-            st.metric("Data Status", "Ready to Process")
+        if uploaded_file:
+            df_raw = pd.read_csv(uploaded_file)
+            st.info(f"Raw Data Loaded: {len(df_raw)} records")
+            st.dataframe(df_raw.head(10), use_container_width=True)
+        else:
+            st.warning("Please upload the dataset to begin.")
+            return
 
-        # Step 2: Preprocessing Logic
+    # --- STEP 2: CLEANING & NORMALIZATION ---
+    with st.expander("Step 2: Cleaning & Normalization", expanded=False):
+        st.subheader("Data Processing Results")
+        
+        # Process the raw data
         df_processed = preprocess_and_resample(df_raw)
-
-        # UI Layout: Side-by-Side Comparisons
-        col_left, col_right = st.columns(2)
-
-        with col_left:
-            st.write("### Raw Data Preview")
-            st.dataframe(df_raw.head(15), use_container_width=True)
-            
-        with col_right:
-            st.write("### Cleaned & Resampled Data")
-            st.dataframe(df_processed.head(15), use_container_width=True)
-
-        # Step 3: Time-normalized data log
-        st.markdown("---")
-        st.write("###  Time-Normalized Data Log")
         
-        log_col1, log_col2 = st.columns(2)
-        with log_col1:
-            log_details = {
-                "Timestamp Format": "ISO-8601 (UTC Standardized)",
-                "Resampling Frequency": "1-Hour Intervals",
-                "Interpolation Method": "Linear",
-                "Final Row Count": len(df_processed)
-            }
-            st.json(log_details)
-            
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**Processing Steps Applied:**")
+            st.write("- Standardized Date Formats")
+            st.write("- Filled Missing Health Metrics")
         
+        with col2:
+            st.markdown("**Processed Data Preview:**")
+            st.dataframe(df_processed.head(10), use_container_width=True)
 
-    else:
-        st.info("Waiting for CSV file upload to display processed results.")
+    # --- STEP 3: TIME-SERIES RESAMPLING ---
+    with st.expander("Step 3: Time-Series Resampling (Daily)", expanded=False):
+        st.subheader("Consistent Interval View")
+        st.write("Data aligned to consistent daily intervals to prevent excessive row generation.")
+        
+        # Display the final resampled dataframe
+        st.dataframe(df_processed, use_container_width=True)
+        
+        # Summary metrics
+        m1, m2 = st.columns(2)
+        m1.metric("Final Row Count", len(df_processed))
+        
 
 if __name__ == "__main__":
     main()
