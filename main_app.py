@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 
 # Page configuration
-st.set_page_config(page_title="FitPulse - Milestone 1", page_icon="🏥", layout="wide")
+st.set_page_config(page_title="FitPulse", page_icon="🏥", layout="wide")
 
 def preprocess_and_resample(df):
     """
@@ -30,9 +30,8 @@ def preprocess_and_resample(df):
     return df_resampled
 
 def main():
-    st.title("🏥 FitPulse: Health Anomaly Detection")
-    st.markdown("## Milestone 1: Data Collection & Preprocessing")
-    st.markdown("---")
+    st.title("🏥 FitPulse")
+   
 
     # --- STEP 1: DATA INGESTION ---
     # Requirement: Import health data from fitness trackers in CSV format
@@ -43,7 +42,7 @@ def main():
         if uploaded_file:
             df_raw = pd.read_csv(uploaded_file)
             st.info(f"Raw Data Loaded: {len(df_raw)} records")
-            st.dataframe(df_raw.head(10), use_container_width=True)
+            st.dataframe(df_raw.head(50), use_container_width=True)
         else:
             st.warning("Please upload the dataset to begin.")
             return
@@ -64,7 +63,7 @@ def main():
         
         with col2:
             st.markdown("**Processed Data Preview:**")
-            st.dataframe(df_processed.head(10), use_container_width=True)
+            st.dataframe(df_processed.head(50), use_container_width=True)
 
     # --- STEP 3: TIME-SERIES RESAMPLING ---
     # Requirement: Align time intervals to consistent frequency
