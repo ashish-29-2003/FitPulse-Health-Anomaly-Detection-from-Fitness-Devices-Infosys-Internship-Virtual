@@ -1,165 +1,198 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+from scipy import stats
 from datetime import datetime
 import plotly.express as px
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Fitpulse",
-    page_icon="🩺", # Updated logo to device icon
-    layout="wide"
+    page_title="FitPulse Pro | AI Anomaly Engine",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# --- USER-FRIENDLY CSS THEME ---
+# --- PROFESSIONAL UI THEME ---
 st.markdown("""
     <style>
-    .stApp { background-color: #1a1b2e; color: #ffffff; }
+    .stApp { background-color: #0E1117; color: #E0E0E0; }
+    section[data-testid="stSidebar"] { background-color: #161B22 !important; border-right: 1px solid #30363D; }
     .main-header {
-        background: linear-gradient(90deg, #ff7e5f, #feb47b);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        font-weight: 800;
-        font-size: 2.8rem;
+        background: linear-gradient(135deg, #00F2FE 0%, #4FACFE 100%);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        font-weight: 800; font-size: 3rem; margin-bottom: 0.5rem;
+    }
+    .metric-card {
+        background-color: #1C2128; border: 1px solid #30363D;
+        padding: 20px; border-radius: 12px; text-align: center;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: 0.3s;
+    }
+    .metric-card:hover { border-color: #4FACFE; transform: translateY(-5px); }
+    .report-box {
+        background-color: #0D1117; border-radius: 10px; padding: 25px;
+        border: 1px solid #4FACFE; margin-top: 15px;
     }
     .stButton>button {
-        width: 100%; border-radius: 8px;
-        background: linear-gradient(90deg, #6a11cb, #2575fc);
-        color: white; border: none; padding: 12px; font-weight: bold;
-    }
-    /* Fixed container for logs to ensure visibility */
-    .log-container {
-        background-color: #262730;
-        padding: 15px;
-        border-radius: 10px;
-        border: 1px solid #464b5d;
+        width: 100%; border-radius: 10px;
+        background: linear-gradient(90deg, #4FACFE 0%, #00F2FE 100%);
+        color: #0E1117; border: none; padding: 12px; font-weight: bold;
     }
     </style>
     """, unsafe_allow_html=True)
 
 def main():
-    # Logo and Header [cite: 1, 9]
-    st.markdown('<h1 class="main-header">🩺 FitPulse Device</h1>', unsafe_allow_html=True)
-    st.markdown("Automated Preprocessing, Time-Series Normalization, and Feature Extraction.")
-    st.divider()
-
-    # --- STEP 1: UPLOAD DATASET ---
-    st.markdown("### Step 1 • Upload Dataset")
-    uploaded_file = st.file_uploader("Drop your CSV file here", type=["csv"])
+    # --- SIDEBAR: INTERNSHIP ARCHITECTURE ---
+    with st.sidebar:
+        st.markdown("<h2 style='color: #4FACFE;'>⚡ FitPulse Engine</h2>", unsafe_allow_html=True)
+        st.caption("Infosys Springboard Virtual Internship")
+        st.divider()
+        menu = st.radio("Project Workflow:", 
+                        ["Step 1: Data Ingestion", "Step 2: Neural Preprocessing", "Step 3: Anomaly Intelligence", "Step 4: Final Audit & Export"])
         
-    if uploaded_file:
-        if 'raw_df' not in st.session_state:
+        st.divider()
+        st.markdown("### 🏆 Milestone Tracker")
+        st.write("✅ Preprocessing")
+        st.write("✅ Time-Series Normalization")
+        st.write("✅ Feature Extraction")
+        st.write("✅ Anomaly Detection")
+        st.divider()
+        st.info("System Engine: Python v3.10")
+
+    st.markdown('<h1 class="main-header">🩺 FitPulse Intelligence Dashboard</h1>', unsafe_allow_html=True)
+
+    # --- STEP 1: DATA INGESTION ---
+    if menu == "Step 1: Data Ingestion":
+        st.markdown("### 📥 1.0 Data Stream Ingestion")
+        uploaded_file = st.file_uploader("Upload Health Telemetry CSV", type=["csv"])
+        if uploaded_file:
             st.session_state['raw_df'] = pd.read_csv(uploaded_file)
-        
-        df = st.session_state['raw_df']
-        st.success(f"Dataset loaded: {len(df):,} rows")
-        
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Rows", len(df))
-        c2.metric("Columns", len(df.columns))
-        c3.metric("Initial Nulls", df.isnull().sum().sum())
-        st.divider()
-
-        # --- STEP 2: CHECK NULL VALUES ---
-        st.markdown("### Step 2 • Check Null Values")
-        if st.button("Check Null Values"):
-            null_data = df.isnull().sum()
-            if null_data.sum() > 0:
-                st.warning("Null Values Detected")
-                st.bar_chart(null_data[null_data > 0], color="#ff4b4b")
-            else:
-                st.success("Zero nulls detected!")
-        st.divider()
-
-        # --- STEP 3: PREPROCESS & NORMALIZE DATA (Merged Log) ---
-        st.markdown("### Step 3 • Preprocess & Normalize Data")
-        if st.button("Run Preprocessing Pipeline"):
-            with st.status("Cleaning, Normalizing, and Extracting Features...", expanded=True):
-                # 1. Date Cleaning (Critical for Step 4 Visibility) [cite: 24, 39]
-                df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
-                df['Date'] = df['Date'].ffill().bfill() 
-                
-                # 2. Time-Normalization (Milestone 1 requirement) [cite: 25, 40]
-                st.write(" Resampling data to hourly intervals for consistency...")
-                df_sorted = df.sort_values('Date')
-                resampled_df = df_sorted.set_index('Date').resample('H').mean(numeric_only=True).reset_index()
-                st.session_state['resampled_log'] = resampled_df.head(50) 
-
-                # 3. Feature Extraction (Milestone 2 requirement) [cite: 27, 67]
-                st.write("Extracting time-series features (Day, Weekend status)...")
-                df['Day_Name'] = df['Date'].dt.day_name()
-                df['Is_Weekend'] = df['Date'].dt.dayofweek.apply(lambda x: 1 if x >= 5 else 0)
-                
-                # 4. Handle Metric Nulls [cite: 24]
-                numeric_cols = df.select_dtypes(include=[np.number]).columns
-                df[numeric_cols] = df[numeric_cols].interpolate(method='linear').ffill().bfill()
-                
-                # 5. Threshold Anomaly Detection [cite: 19, 85]
-                if 'Heart_Rate' in df.columns:
-                    df['HR_Anomaly'] = df['Heart_Rate'].apply(lambda x: 1 if x > 120 or x < 50 else 0)
-
-                st.session_state['cleaned_df'] = df.copy() 
-                st.write("Preprocessing Complete!")
-
-            # Display the Normalized Log clearly 
-            st.markdown("#### Time-Normalized Data Log")
-            st.dataframe(st.session_state['resampled_log'], use_container_width=True)
-
-        st.divider()
-
-        # --- STEP 4: PREVIEW & DOWNLOAD CLEANED DATASET ---
-        st.markdown("###  Step 4 • Preview Cleaned Dataset")
-        if 'cleaned_df' in st.session_state:
-            cleaned_view = st.session_state['cleaned_df']
-            st.dataframe(cleaned_view.head(50), use_container_width=True)
+            df = st.session_state['raw_df']
             
-            if cleaned_view.isnull().sum().sum() == 0:
-                st.success("Cleaned Dataset Verified: 0 Null Values remaining.")
+            c1, c2, c3, c4 = st.columns(4)
+            c1.markdown(f'<div class="metric-card"><h5>Raw Records</h5><h2>{len(df):,}</h2></div>', unsafe_allow_html=True)
+            c2.markdown(f'<div class="metric-card"><h5>Feature Count</h5><h2>{len(df.columns)}</h2></div>', unsafe_allow_html=True)
+            c3.markdown(f'<div class="metric-card"><h5>Null Gaps</h5><h2>{df.isnull().sum().sum()}</h2></div>', unsafe_allow_html=True)
+            c4.markdown(f'<div class="metric-card"><h5>Integrity</h5><h2>{100 - (df.isnull().sum().sum()/max(df.size,1))*100:.1f}%</h2></div>', unsafe_allow_html=True)
             
-            # Download Option [cite: 36, 111]
-            csv_cleaned = cleaned_view.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="Download Cleaned CSV File",
-                data=csv_cleaned,
-                file_name="FitPulse_Cleaned_Data.csv",
-                mime="text/csv"
-            )
+            st.write("### Initial Telemetry Preview")
+            st.dataframe(df.head(10), use_container_width=True)
+
+    # --- STEP 2: NEURAL PREPROCESSING ---
+    elif menu == "Step 2: Neural Preprocessing":
+        st.markdown("### ⚙️ 2.0 Preprocessing & Time-Series Normalization")
+        if 'raw_df' in st.session_state:
+            if st.button("🚀 Execute Neural Pipeline"):
+                df = st.session_state['raw_df'].copy()
+                with st.status("Hardening Data Structure...", expanded=True) as status:
+                    # 1. Date Normalization
+                    df['Date'] = pd.to_datetime(df['Date'], errors='coerce').ffill().bfill()
+                    
+                    # 2. Hourly Resampling (Requirement)
+                    st.write("Normalizing Time-Series (Hourly Resampling)...")
+                    resampled = df.sort_values('Date').set_index('Date').resample('H').mean(numeric_only=True).reset_index()
+                    st.session_state['resampled_log'] = resampled.head(20)
+                    
+                    # 3. Feature Extraction (Milestone 2)
+                    st.write("Extracting Temporal Features...")
+                    df['Hour'] = df['Date'].dt.hour
+                    df['Day_Type'] = df['Date'].dt.dayofweek.apply(lambda x: 'Weekend' if x >= 5 else 'Weekday')
+                    
+                    # 4. Sensor Gap Interpolation
+                    num_cols = df.select_dtypes(include=[np.number]).columns
+                    df[num_cols] = df[num_cols].interpolate(method='linear').ffill().bfill()
+                    
+                    # 5. Statistical Anomaly Logic (Z-Score)
+                    if 'Heart_Rate' in df.columns:
+                        df['Z_Score'] = np.abs(stats.zscore(df['Heart_Rate']))
+                        df['Is_Anomaly'] = (df['Z_Score'] > 2.5).astype(int)
+                    
+                    st.session_state['cleaned_df'] = df.copy()
+                    status.update(label="Normalization Complete!", state="complete")
+                
+                st.success("Data Normalized & Features Engineered Successfully.")
+                st.dataframe(st.session_state['resampled_log'], use_container_width=True)
         else:
-            st.info("Run Step 3 first.")
-        st.divider()
+            st.info("Please upload a dataset in Step 1.")
 
-        # --- STEP 5: EXPLORATORY DATA ANALYSIS (EDA) ---
-        st.markdown("###  Step 5 • Exploratory Data Analysis")
+    # --- STEP 3: ANOMALY INTELLIGENCE ---
+    elif menu == "Step 3: Anomaly Intelligence":
+        st.markdown("### 📊 3.0 Visual Health Analytics")
         if 'cleaned_df' in st.session_state:
-            eda_data = st.session_state['cleaned_df']
-            num_cols = [c for c in eda_data.select_dtypes(include=[np.number]).columns if 'Anomaly' not in c]
+            df = st.session_state['cleaned_df']
             
-            selected_metrics = st.multiselect("Select health metrics to view trends:", num_cols, default=num_cols[:1])
-            if selected_metrics:
-                # Cleaner graph: head(150) prevents overlap 
-                fig_trend = px.line(eda_data.head(150), x='Date', y=selected_metrics, 
-                                    template="plotly_dark", markers=True)
-                fig_trend.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-                st.plotly_chart(fig_trend, use_container_width=True)
-
-            # Correlation Matrix [cite: 56]
-            st.markdown("#### Feature Correlation Matrix")
-            corr_matrix = eda_data[num_cols].corr()
-            st.dataframe(corr_matrix.style.background_gradient(cmap='coolwarm'), use_container_width=True)
+            st.markdown("#### 📈 Multi-Dimensional Trend Mapping")
+            metrics = [c for c in df.select_dtypes(include=[np.number]).columns if 'Anomaly' not in c and 'Z_Score' not in c]
+            selected = st.multiselect("Select Telemetry:", metrics, default=metrics[:1])
+            if selected:
+                fig = px.line(df.head(500), x='Date', y=selected, template="plotly_dark")
+                fig.update_layout(hovermode="x unified", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                st.plotly_chart(fig, use_container_width=True)
             
-            # Download EDA Correlation [cite: 141]
-            csv_eda = corr_matrix.to_csv().encode('utf-8')
-            st.download_button(
-                label="Download EDA Correlation CSV",
-                data=csv_eda,
-                file_name="FitPulse_EDA_Correlation.csv",
-                mime="text/csv"
-            )
+            st.divider()
+            st.markdown("#### 🚨 Statistical Anomaly Detection")
+            c1, c2 = st.columns([2, 1])
+            with c1:
+                fig_scatter = px.scatter(df.head(500), x='Date', y='Heart_Rate', color='Is_Anomaly',
+                                         color_continuous_scale=['#4FACFE', '#FF4B4B'], title="Outlier Detection (Z-Score Threshold)")
+                st.plotly_chart(fig_scatter, use_container_width=True)
+            with c2:
+                fig_pie = px.pie(df, names='Is_Anomaly', hole=0.5, color='Is_Anomaly',
+                                color_discrete_map={0:'#4FACFE', 1:'#FF4B4B'}, title="Data Health Ratio")
+                st.plotly_chart(fig_pie, use_container_width=True)
         else:
-            st.info("Run Preprocessing to unlock Step 5.")
+            st.info("Execute Preprocessing in Step 2 first.")
 
-    else:
-        st.info("Please upload a CSV file to begin.")
+    # --- STEP 4: FINAL AUDIT & EXPORT (HIGH DETAIL) ---
+    elif menu == "Step 4: Final Audit & Export":
+        st.markdown("### 📋 4.0 Comprehensive Technical Audit")
+        if 'cleaned_df' in st.session_state:
+            df = st.session_state['cleaned_df']
+            
+            # --- DETAILED AUDIT REPORT ---
+            st.markdown('<div class="report-box">', unsafe_allow_html=True)
+            st.markdown("#### 🔍 Technical Preprocessing Summary")
+            
+            aud_c1, aud_c2, aud_c3 = st.columns(3)
+            with aud_c1:
+                st.write("**Data Integrity Check**")
+                nulls = df.isnull().sum().sum()
+                st.markdown(f"<h3 style='color: {'#00FFCC' if nulls==0 else '#FF4B4B'};'>{'VERIFIED CLEAN' if nulls==0 else 'ERRORS FOUND'}</h3>", unsafe_allow_html=True)
+                st.write(f"Total Residual Nulls: **{nulls}**")
+            
+            with aud_c2:
+                st.write("**Anomaly Frequency**")
+                anoms = df['Is_Anomaly'].sum() if 'Is_Anomaly' in df.columns else 0
+                st.markdown(f"<h3 style='color: #FF4B4B;'>{anoms} Flagged</h3>", unsafe_allow_html=True)
+                st.write("Method: Statistical Z-Score (Threshold > 2.5)")
+                
+            with aud_c3:
+                st.write("**Feature Engineering**")
+                st.markdown("<h3 style='color: #4FACFE;'>3 NEW FEATURES</h3>", unsafe_allow_html=True)
+                st.write("Hour, Day_Type, Anomaly_Status")
+
+            st.markdown("---")
+            st.markdown("**Internship Milestone Accomplishments:**")
+            st.markdown("""
+            * **Automated Preprocessing:** Corrected date formats and handled sensor missingness via linear interpolation.
+            * **Normalization:** Successfully performed hourly resampling to maintain time-series consistency.
+            * **Feature Extraction:** Engineered temporal markers to identify behavior patterns between Weekdays and Weekends.
+            * **Anomaly Logic:** Deployed a statistical outlier detection engine based on standard deviation scores.
+            """)
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            st.markdown("#### ✅ Final Processed Dataset Preview")
+            st.dataframe(df.head(50), use_container_width=True)
+            
+            st.divider()
+            c_d1, c_d2 = st.columns(2)
+            with c_d1:
+                csv = df.to_csv(index=False).encode('utf-8')
+                st.download_button("💾 Download Audit-Ready Dataset", csv, "FitPulse_Final_Audit.csv", "text/csv")
+            with c_d2:
+                st.success("Audit Complete. Ready for Internship Submission.")
+        else:
+            st.info("Complete the Processing and Analytics steps to generate the audit report.")
 
 if __name__ == "__main__":
     main()
