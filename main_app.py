@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import plotly.express as px  # Added for more attractive visualizations
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -49,7 +50,7 @@ st.markdown("""
         font-weight: bold;
     }
     </style>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
 def main():
     st.markdown('<h1 class="main-header">🏋️ Fitness Health Data — Pro Pipeline</h1>', unsafe_allow_html=True)
@@ -57,109 +58,127 @@ def main():
     st.divider()
 
     # --- STEP 1: UPLOAD DATASET ---
-    st.markdown("### 📂 Step 1 • Upload Dataset")
-    uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
-
-    if uploaded_file is not None:
-        df = pd.read_csv(uploaded_file)
-        st.success("File uploaded successfully!")
+    st.markdown("### 📁 Step 1 • Upload Dataset")
+    with st.container():
+        uploaded_file = st.file_uploader("Drop your CSV file here", type=["csv"])
         
-        # Save original in session state
-        st.session_state['df'] = df
-
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("#### Raw Data Preview")
-            st.dataframe(df.head(10), use_container_width=True)
-        with col2:
-            st.markdown("#### Null Value Count (Before)")
-            st.write(df.isnull().sum())
+    if uploaded_file:
+        df = pd.read_csv(uploaded_file)
+        st.success(f"Dataset loaded successfully! | {len(df):,} rows × {len(df.columns)} columns")
+        
+        # Dashboard Overview
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Rows", len(df))
+        c2.metric("Columns", len(df.columns))
+        c3.metric("Total Nulls", df.isnull().sum().sum())
 
         st.divider()
 
-        # --- STEP 2: PREPROCESSING ---
-        st.markdown("### ⚙️ Step 2 • Intelligent Preprocessing")
-        if st.button("🚀 Run Preprocessing Pipeline"):
-            with st.spinner("Cleaning data, handling anomalies, and filling nulls..."):
-                cleaned_df = df.copy()
+        # --- STEP 2: CHECK NULL VALUES ---
+        st.markdown("### 🔍 Step 2 • Check Null Values")
+        if st.button("Check Null Values"):
+            null_data = df.isnull().sum()
+            if null_data.sum() > 0:
+                st.warning("Null Values Detected")
+                st.bar_chart(null_data[null_data > 0], color="#ff4b4b")
+            else:
+                st.success("Zero nulls remaining!")
 
-                # 1. Standardize Date
-                cleaned_df["Date"] = pd.to_datetime(cleaned_df["Date"], errors="coerce")
+        st.divider()
 
-                # 2. Define Numeric Columns for Imputation
-                numeric_cols = cleaned_df.select_dtypes(include=[np.number]).columns.tolist()
-                # Remove User_ID if it exists as it shouldn't be averaged
-                if 'User_ID' in numeric_cols: numeric_cols.remove('User_ID')
-
-                # 3. Intelligent Imputation (Group by User then Interpolate + Fill)
-                if 'User_ID' in cleaned_df.columns:
-                    # Linearly interpolate missing values per user
-                    cleaned_df[numeric_cols] = cleaned_df.groupby("User_ID")[numeric_cols].transform(
-                        lambda x: x.interpolate(method="linear")
-                    )
-                    # Forward/Backward fill any remaining nulls (e.g., at the start or end of a series)
-                    cleaned_df[numeric_cols] = cleaned_df.groupby("User_ID")[numeric_cols].transform(
-                        lambda x: x.ffill().bfill()
-                    )
-                else:
-                    # Global interpolation if no User_ID
-                    cleaned_df[numeric_cols] = cleaned_df[numeric_cols].interpolate(method="linear").ffill().bfill()
-
-                # 4. Handle Categorical Columns (Categorical nulls like Workout_Type)
-                cat_cols = cleaned_df.select_dtypes(include=['object']).columns.tolist()
-                for col in cat_cols:
-                    if col != 'Full Name': # Usually keep names or handle specifically
-                        cleaned_df[col] = cleaned_df[col].fillna("Not Recorded")
-
-                # 5. Final check: Fill any absolute remaining nulls with global median/mode
-                cleaned_df[numeric_cols] = cleaned_df[numeric_cols].fillna(cleaned_df[numeric_cols].median())
+        # --- STEP 3: PREPROCESS DATA (Milestone 2 Updates) ---
+        st.markdown("### ⚙️ Step 3 • Preprocess Data")
+        if st.button("Run Preprocessing"):
+            with st.status("Preprocessing Log", expanded=True):
+                # Time Normalization
+                st.write("🕒 Parsing Date column and extracting Time-Series features...")
+                df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+                # Feature Extraction (Milestone 2)
+                df['Day'] = df['Date'].dt.day_name()
+                df['Month'] = df['Date'].dt.month_name()
+                df['Is_Weekend'] = df['Date'].dt.dayofweek.apply(lambda x: 1 if x >= 5 else 0)
                 
-                st.session_state['cleaned_df'] = cleaned_df
-                st.success("Preprocessing Complete! No Null Values remain.")
+                # Handling Nulls (Deep Cleaning)
+                st.write("🔧 Cleaning and interpolating metrics...")
+                numeric_cols = df.select_dtypes(include=[np.number]).columns
+                df[numeric_cols] = df[numeric_cols].interpolate(method='linear').ffill().bfill()
+                
+                # Final safety fill for numeric and categorical
+                df[numeric_cols] = df[numeric_cols].fillna(df[numeric_cols].median())
+                cat_cols = df.select_dtypes(include=['object']).columns
+                df[cat_cols] = df[cat_cols].fillna("Not Recorded")
+                
+                # Anomaly Detection Logic (Milestone 2)
+                st.write("🚨 Detecting Health Anomalies...")
+                # Rule-based: High Heart Rate
+                if 'Heart_Rate' in df.columns:
+                    df['HR_Anomaly'] = df['Heart_Rate'].apply(lambda x: 1 if x > 120 or x < 50 else 0)
+                
+                # Statistical-based: Z-Score for Sleep Duration
+                if 'Sleep_Duration' in df.columns:
+                    mean_sleep = df['Sleep_Duration'].mean()
+                    std_sleep = df['Sleep_Duration'].std()
+                    df['Sleep_Anomaly'] = df['Sleep_Duration'].apply(
+                        lambda x: 1 if (x < mean_sleep - 2*std_sleep) or (x > mean_sleep + 2*std_sleep) else 0
+                    )
+                
+                st.session_state['cleaned_df'] = df
+                st.write("✅ Preprocessing & Feature Extraction Complete")
 
         st.divider()
 
-        # --- STEP 3: CLEANED DATA PREVIEW ---
-        st.markdown("### ✨ Step 3 • Preview Cleaned Dataset")
+        # --- STEP 4: PREVIEW CLEANED DATASET ---
+        st.markdown("### 👁️ Step 4 • Preview Cleaned Dataset")
         if 'cleaned_df' in st.session_state:
-            c_df = st.session_state['cleaned_df']
-            
-            tab1, tab2 = st.tabs(["Data Preview", "Null Value Check"])
-            
-            with tab1:
-                st.dataframe(c_df.head(20), use_container_width=True)
-            
-            with tab2:
-                null_counts = c_df.isnull().sum()
-                if null_counts.sum() == 0:
-                    st.balloons()
-                    st.success("Perfect! 0 Null Values detected.")
-                st.write(null_counts)
-
-            # --- STEP 4: DOWNLOAD ---
-            st.markdown("### 📥 Step 4 • Export Cleaned Data")
-            csv = c_df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📥 Download Cleaned CSV",
-                data=csv,
-                file_name="FitPulse_Cleaned_Data.csv",
-                mime="text/csv"
-            )
+            if st.button("Preview Cleaned Data"):
+                cleaned_data = st.session_state['cleaned_df']
+                st.dataframe(cleaned_data.head(20), use_container_width=True)
+                
+                # Final Verification for User
+                null_check = cleaned_data.isnull().sum().sum()
+                if null_check == 0:
+                    st.success("✅ Verification: 0 Null Values found in cleaned dataset.")
+                
+                # Download Button
+                csv = cleaned_data.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Download Cleaned CSV",
+                    data=csv,
+                    file_name="FitPulse_Cleaned_Data_Pro.csv",
+                    mime="text/csv"
+                )
         else:
-            st.info("Run Preprocessing (Step 2) to generate the cleaned dataset.")
+            st.info("Run Preprocessing first to preview cleaned data.")
 
         st.divider()
 
-        # --- STEP 5: EDA ---
+        # --- STEP 5: EXPLORATORY DATA ANALYSIS (Attractive Visuals) ---
         st.markdown("### 📊 Step 5 • Exploratory Data Analysis")
         if st.button("Run Full EDA"):
             data = st.session_state.get('cleaned_df', df)
-            st.markdown("#### Correlation Heatmap")
+            
+            # 1. Anomaly Summary Cards
+            st.markdown("#### Health Anomaly Insights")
+            col_a, col_b = st.columns(2)
+            if 'HR_Anomaly' in data.columns:
+                hr_count = data['HR_Anomaly'].sum()
+                col_a.metric("Abnormal Heart Rate Flags", hr_count, delta="Alerts Found", delta_color="inverse")
+            if 'Sleep_Anomaly' in data.columns:
+                sl_count = data['Sleep_Anomaly'].sum()
+                col_b.metric("Sleep Pattern Anomalies", sl_count, delta="Alerts Found", delta_color="inverse")
+
+            # 2. Interactive Distribution Plot
+            st.markdown("#### Feature Distribution")
+            numeric_options = data.select_dtypes(include=[np.number]).columns.tolist()
+            selected_col = st.selectbox("Select metric to view distribution:", numeric_options)
+            fig_dist = px.histogram(data, x=selected_col, nbins=30, color_discrete_sequence=['#6a11cb'], marginal="box")
+            fig_dist.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+            st.plotly_chart(fig_dist, use_container_width=True)
+            
+            # 3. Correlation Heatmap
+            st.markdown("#### Metric Correlation Matrix")
             corr = data.select_dtypes(include=[np.number]).corr()
             st.dataframe(corr.style.background_gradient(cmap='coolwarm'), use_container_width=True)
-            
-            st.markdown("#### Metric Trends (First 100 Records)")
-            st.line_chart(data.select_dtypes(include=[np.number]).head(100))
 
     else:
         st.info("Please upload your Fitness CSV file to begin the pipeline.")
