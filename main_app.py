@@ -1,9 +1,12 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import os
+import pickle
 from scipy import stats
 from datetime import datetime
 import plotly.express as px
+from sklearn.ensemble import IsolationForest
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -88,12 +91,12 @@ def main():
                     # 1. Date Normalization
                     df['Date'] = pd.to_datetime(df['Date'], errors='coerce').ffill().bfill()
                     
-                    # 2. Hourly Resampling (Requirement)
+                    # 2. Hourly Resampling
                     st.write("Normalizing Time-Series (Hourly Resampling)...")
                     resampled = df.sort_values('Date').set_index('Date').resample('H').mean(numeric_only=True).reset_index()
                     st.session_state['resampled_log'] = resampled.head(20)
                     
-                    # 3. Feature Extraction (Milestone 2)
+                    # 3. Feature Extraction
                     st.write("Extracting Temporal Features...")
                     df['Hour'] = df['Date'].dt.hour
                     df['Day_Type'] = df['Date'].dt.dayofweek.apply(lambda x: 'Weekend' if x >= 5 else 'Weekday')
@@ -102,15 +105,42 @@ def main():
                     num_cols = df.select_dtypes(include=[np.number]).columns
                     df[num_cols] = df[num_cols].interpolate(method='linear').ffill().bfill()
                     
-                    # 5. Statistical Anomaly Logic (Z-Score)
-                    if 'Heart_Rate' in df.columns:
-                        df['Z_Score'] = np.abs(stats.zscore(df['Heart_Rate']))
+                    # 5. ML Model Logic (Fixing Directory/File issues)
+                    st.write("Synchronizing AI Models...")
+                    model_dir = 'models'
+                    model_path = os.path.join(model_dir, 'isolation_forest_model.pkl')
+                    
+                    if not os.path.exists(model_dir):
+                        os.makedirs(model_dir)
+
+                    # Determine features for model (adjust column names based on your CSV)
+                    potential_features = ['Heart_Rate', 'Steps', 'Calories_Burned', 'Sleep_Hours']
+                    features = [f for f in potential_features if f in df.columns]
+                    
+                    if features:
+                        try:
+                            # Train/Load Logic
+                            model = IsolationForest(contamination=0.05, random_state=42)
+                            df['Is_Anomaly'] = model.fit_predict(df[features])
+                            # Map -1 to 1 (anomaly) and 1 to 0 (normal)
+                            df['Is_Anomaly'] = df['Is_Anomaly'].map({1: 0, -1: 1})
+                            
+                            # Persist the model
+                            with open(model_path, 'wb') as f:
+                                pickle.dump(model, f)
+                        except Exception as e:
+                            st.warning(f"ML Pipeline error: {e}. Falling back to Z-Score.")
+                            df['Z_Score'] = np.abs(stats.zscore(df['Heart_Rate'])) if 'Heart_Rate' in df.columns else 0
+                            df['Is_Anomaly'] = (df['Z_Score'] > 2.5).astype(int)
+                    else:
+                        # Fallback if no numeric health columns are found
+                        df['Z_Score'] = np.abs(stats.zscore(df.select_dtypes(include=np.number).iloc[:, 0]))
                         df['Is_Anomaly'] = (df['Z_Score'] > 2.5).astype(int)
                     
                     st.session_state['cleaned_df'] = df.copy()
                     status.update(label="Normalization Complete!", state="complete")
                 
-                st.success("Data Normalized & Features Engineered Successfully.")
+                st.success("Data Normalized & AI Models Synchronized Successfully.")
                 st.dataframe(st.session_state['resampled_log'], use_container_width=True)
         else:
             st.info("Please upload a dataset in Step 1.")
@@ -122,7 +152,7 @@ def main():
             df = st.session_state['cleaned_df']
             
             st.markdown("#### 📈 Multi-Dimensional Trend Mapping")
-            metrics = [c for c in df.select_dtypes(include=[np.number]).columns if 'Anomaly' not in c and 'Z_Score' not in c]
+            metrics = [c for c in df.select_dtypes(include=[np.number]).columns if 'Anomaly' not in c and 'Z_Score' not in c and 'Hour' not in c]
             selected = st.multiselect("Select Telemetry:", metrics, default=metrics[:1])
             if selected:
                 fig = px.line(df.head(500), x='Date', y=selected, template="plotly_dark")
@@ -130,11 +160,12 @@ def main():
                 st.plotly_chart(fig, use_container_width=True)
             
             st.divider()
-            st.markdown("#### 🚨 Statistical Anomaly Detection")
+            st.markdown("#### 🚨 AI-Driven Outlier Detection")
             c1, c2 = st.columns([2, 1])
             with c1:
-                fig_scatter = px.scatter(df.head(500), x='Date', y='Heart_Rate', color='Is_Anomaly',
-                                         color_continuous_scale=['#4FACFE', '#FF4B4B'], title="Outlier Detection (Z-Score Threshold)")
+                y_val = 'Heart_Rate' if 'Heart_Rate' in df.columns else metrics[0]
+                fig_scatter = px.scatter(df.head(500), x='Date', y=y_val, color='Is_Anomaly',
+                                         color_continuous_scale=['#4FACFE', '#FF4B4B'], title="AI Flagged Deviations")
                 st.plotly_chart(fig_scatter, use_container_width=True)
             with c2:
                 fig_pie = px.pie(df, names='Is_Anomaly', hole=0.5, color='Is_Anomaly',
@@ -143,13 +174,12 @@ def main():
         else:
             st.info("Execute Preprocessing in Step 2 first.")
 
-    # --- STEP 4: FINAL AUDIT & EXPORT (HIGH DETAIL) ---
+    # --- STEP 4: FINAL AUDIT & EXPORT ---
     elif menu == "Step 4: Final Audit & Export":
         st.markdown("### 📋 4.0 Comprehensive Technical Audit")
         if 'cleaned_df' in st.session_state:
             df = st.session_state['cleaned_df']
             
-            # --- DETAILED AUDIT REPORT ---
             st.markdown('<div class="report-box">', unsafe_allow_html=True)
             st.markdown("#### 🔍 Technical Preprocessing Summary")
             
@@ -164,7 +194,7 @@ def main():
                 st.write("**Anomaly Frequency**")
                 anoms = df['Is_Anomaly'].sum() if 'Is_Anomaly' in df.columns else 0
                 st.markdown(f"<h3 style='color: #FF4B4B;'>{anoms} Flagged</h3>", unsafe_allow_html=True)
-                st.write("Method: Statistical Z-Score (Threshold > 2.5)")
+                st.write("Method: Isolation Forest (ML)")
                 
             with aud_c3:
                 st.write("**Feature Engineering**")
@@ -176,8 +206,8 @@ def main():
             st.markdown("""
             * **Automated Preprocessing:** Corrected date formats and handled sensor missingness via linear interpolation.
             * **Normalization:** Successfully performed hourly resampling to maintain time-series consistency.
-            * **Feature Extraction:** Engineered temporal markers to identify behavior patterns between Weekdays and Weekends.
-            * **Anomaly Logic:** Deployed a statistical outlier detection engine based on standard deviation scores.
+            * **Feature Extraction:** Engineered temporal markers (Hour/Day_Type) for pattern recognition.
+            * **AI Intelligence:** Implemented Isolation Forest with automatic path handling for model persistence.
             """)
             st.markdown('</div>', unsafe_allow_html=True)
             
