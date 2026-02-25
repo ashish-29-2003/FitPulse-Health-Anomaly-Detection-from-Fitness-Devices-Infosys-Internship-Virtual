@@ -3,130 +3,148 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 
-
-# Page configuration
+# --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="FitPulse Pro | AI Intelligence", 
-    page_icon="⚡", 
+    page_title="Fitness Data Pro | Pipeline",
+    page_icon="🏆",
     layout="wide"
 )
 
-# --- UNIQUE UI: CYBERPUNK NEON THEME ---
+# --- USER-FRIENDLY CSS THEME ---
 st.markdown("""
     <style>
+    /* Professional Dark Theme */
     .stApp {
-        background: radial-gradient(circle at 50% 50%, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-        color: #e94560;
+        background-color: #1a1b2e;
+        color: #ffffff;
     }
     
-    /* Unique Highlight Cards */
-    div[data-testid="stVerticalBlock"] > div:has(div.stMarkdown) {
-        background: rgba(15, 52, 96, 0.4);
-        backdrop-filter: blur(20px);
+    /* Elegant Card Design for Steps */
+    .step-card {
+        background-color: #2a2b45;
         border-radius: 15px;
-        padding: 30px;
-        border: 1px solid #0f3460;
-        box-shadow: 0 0 20px rgba(233, 69, 96, 0.2);
+        padding: 25px;
+        margin-bottom: 30px;
+        border: 1px solid #3d3e5a;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
     }
 
-    /* Anomaly Alert Styling */
-    .anomaly-card {
-        background: rgba(233, 69, 96, 0.1);
-        border: 1px solid #e94560;
-        padding: 10px;
-        border-radius: 10px;
-        color: #e94560;
+    /* Gradient Headers */
+    .main-header {
+        background: linear-gradient(90deg, #ff7e5f, #feb47b);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-weight: 800;
+        font-size: 2.8rem;
+    }
+
+    /* Button Customization */
+    .stButton>button {
+        width: 100%;
+        border-radius: 8px;
+        background: linear-gradient(90deg, #6a11cb, #2575fc);
+        color: white;
+        border: none;
+        padding: 12px;
         font-weight: bold;
     }
     </style>
     """, unsafe_allow_html=True)
 
-def detect_anomalies(df):
-    """
-    AI FEATURE: Uses Isolation Forest to detect sensor errors.
-    This will impress evaluators by showing Machine Learning knowledge.
-    """
-    model = IsolationForest(contamination=0.05, random_state=42)
-    # Using Heart Rate and Active Minutes to find anomalies
-    features = ["Heart_Rate (bpm)", "Active_Minutes"]
-    # Drop NaNs just for the model check
-    temp_df = df[features].dropna()
-    model.fit(temp_df)
-    
-    df['Anomaly_Score'] = -1 # Default
-    # Mark anomalies: -1 is outlier, 1 is normal
-    df.loc[temp_df.index, 'Is_Anomaly'] = model.predict(temp_df)
-    return df
-
-def preprocess_and_log(df):
-    logs = []
-    # UTC Normalization
-    df["Date"] = pd.to_datetime(df["Date"], errors="coerce", dayfirst=True)
-    df = df.dropna(subset=["Date"])
-    if df["Date"].dt.tz is None:
-        df["Date"] = df["Date"].dt.tz_localize('UTC')
-    logs.append("UTC Global Sync: Completed.")
-
-    # Smart Interpolation
-    numeric_cols = ["Hours_Slept", "Water_Intake (Liters)", "Active_Minutes", "Heart_Rate (bpm)"]
-    df[numeric_cols] = df.groupby("User_ID")[numeric_cols].transform(
-        lambda x: x.interpolate(method="polynomial", order=2).ffill().bfill()
-    )
-    logs.append("Advanced Interpolation: Polynomial method applied.")
-    
-    return df, logs
-
 def main():
-    st.title("⚡ FitPulse Pro: AI Diagnostic Engine")
-    st.markdown("### *Next-Gen Health Stream Processing*")
-    
-    # --- STEP 1: INGESTION ---
-    uploaded_file = st.file_uploader("Upload Wearable Data", type=["csv"])
+    st.markdown('<h1 class="main-header">🏋️ Fitness Health Data — Pro Pipeline</h1>', unsafe_allow_html=True)
+    st.markdown("Upload your fitness tracking CSV and let the pipeline preprocess, clean, and explore your data.")
+    st.divider()
 
+    # --- STEP 1: UPLOAD DATASET ---
+    st.markdown("### 📁 Step 1 • Upload Dataset")
+    with st.container():
+        uploaded_file = st.file_uploader("Drop your CSV file here", type=["csv"])
+        
     if uploaded_file:
-        df_raw = pd.read_csv(uploaded_file)
+        df = pd.read_csv(uploaded_file)
+        st.success(f"Fitness_Health_Tracking_Dataset.csv loaded successfully! | {len(df):,} rows × {len(df.columns)} columns")
         
-        # --- UNIQUE FEATURE 1: AI ANOMALY DETECTION ---
-        st.header("🔍 AI Sensor Diagnostics")
-        df_analyzed = detect_anomalies(df_raw.copy())
-        
-        anomalies_found = len(df_analyzed[df_analyzed['Is_Anomaly'] == -1])
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Sensor Accuracy", f"{100 - (anomalies_found/len(df_raw)*100):.1f}%")
-        with col2:
-            st.write(f"**AI Insight:** Detected **{anomalies_found}** suspicious data points (outliers) that might be sensor glitches.")
+        # Dashboard Overview
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Rows", len(df))
+        c2.metric("Columns", len(df.columns))
+        c3.metric("Total Nulls", df.isnull().sum().sum())
 
-        # --- UNIQUE FEATURE 2: HEALTH TREND VISUALIZATION ---
-        st.header("📈 Heart Rate Intelligence")
-        st.line_chart(df_raw.set_index('Date')['Heart_Rate (bpm)'].head(100), color="#e94560")
-        
-        # --- STEP 3: PREPROCESSING ---
-        st.header("🛠️ Intelligent Processing")
-        if st.button("EXECUTE PREPROCESSING"):
-            df_clean, process_logs = preprocess_and_log(df_raw)
+        st.divider()
+
+        # --- STEP 2: CHECK NULL VALUES ---
+        st.markdown("### 🔍 Step 2 • Check Null Values")
+        if st.button("Check Null Values"):
+            null_data = df.isnull().sum()
+            if null_data.sum() > 0:
+                st.warning("Null Values Detected")
+                # Using a bar chart to visualize nulls (mimicking video reference)
+                st.bar_chart(null_data[null_data > 0], color="#ff4b4b")
+            else:
+                st.success("Zero nulls remaining!")
+
+        st.divider()
+
+        # --- STEP 3: PREPROCESS DATA ---
+        st.markdown("### ⚙️ Step 3 • Preprocess Data")
+        if st.button("Run Preprocessing"):
+            with st.status("Preprocessing Log", expanded=True):
+                # Time Normalization
+                st.write("🕒 Parsing Date column to datetime...")
+                df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+                
+                # Handling Nulls
+                st.write("🔧 Interpolating (linear) + ffill/bfill null values in key metrics...")
+                numeric_cols = df.select_dtypes(include=[np.number]).columns
+                df[numeric_cols] = df[numeric_cols].interpolate(method='linear').ffill().bfill()
+                
+                # Categorical Cleaning
+                if 'Workout_Type' in df.columns:
+                    st.write("📝 Filled Workout_Type nulls -> 'No Workout'")
+                    df['Workout_Type'] = df['Workout_Type'].fillna("No Workout")
+                
+                st.session_state['cleaned_df'] = df
+                st.write("✅ Preprocessing Complete")
+
+        st.divider()
+
+        # --- STEP 4: PREVIEW CLEANED DATASET ---
+        st.markdown("### 👁️ Step 4 • Preview Cleaned Dataset")
+        if 'cleaned_df' in st.session_state:
+            if st.button("Preview Cleaned Data"):
+                st.dataframe(st.session_state['cleaned_df'].head(20), use_container_width=True)
+                
+                # Download Button
+                csv = st.session_state['cleaned_df'].to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Download Cleaned CSV",
+                    data=csv,
+                    file_name="FitPulse_Cleaned_Data.csv",
+                    mime="text/csv"
+                )
+        else:
+            st.info("Run Preprocessing first to preview cleaned data.")
+
+        st.divider()
+
+        # --- STEP 5: EXPLORATORY DATA ANALYSIS ---
+        st.markdown("### 📊 Step 5 • Exploratory Data Analysis")
+        if st.button("Run Full EDA"):
+            data = st.session_state.get('cleaned_df', df)
             
-            with st.status("Optimizing Streams...", expanded=True):
-                for log in process_logs:
-                    st.write(f"🚀 {log}")
+            # Numeric Distributions
+            st.markdown("#### Distribution of Numeric Features")
+            st.line_chart(data.select_dtypes(include=[np.number]).head(100))
             
-            # --- STEP 4: PREVIEW & EXPORT ---
-            st.header("📦 Final Health Intelligence Report")
-            st.dataframe(df_clean.head(15), use_container_width=True)
-            
-            csv = df_clean.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="DOWNLOAD VALIDATED REPORT",
-                data=csv,
-                file_name=f"FitPulse_PRO_{datetime.now().strftime('%Y%m%d')}.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
-            st.success("Data is now ready for Clinical-Grade Anomaly Detection.")
+            # Correlation Matrix
+            st.markdown("#### Correlation Heatmap")
+            corr = data.select_dtypes(include=[np.number]).corr()
+            st.dataframe(corr.style.background_gradient(cmap='coolwarm'), use_container_width=True)
 
     else:
-        st.info("Please upload your CSV to activate the AI Diagnostic Engine.")
+        # Initial Landing Screen
+        st.info("Please upload your Fitness CSV file to begin the pipeline.")
 
 if __name__ == "__main__":
     main()
