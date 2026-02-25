@@ -5,8 +5,10 @@ import os
 import pickle
 from scipy import stats
 from datetime import datetime
-import plotly.express as px
-from sklearn.ensemble import IsolationForest
+try:
+    import plotly.express as px
+except ImportError:
+    st.error("Plotly is required. Please install it using 'pip install plotly'.")
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -80,7 +82,7 @@ def main():
             c1.markdown(f'<div class="metric-card"><h5>Raw Records</h5><h2>{len(df):,}</h2></div>', unsafe_allow_html=True)
             c2.markdown(f'<div class="metric-card"><h5>Feature Count</h5><h2>{len(df.columns)}</h2></div>', unsafe_allow_html=True)
             c3.markdown(f'<div class="metric-card"><h5>Null Gaps</h5><h2>{df.isnull().sum().sum()}</h2></div>', unsafe_allow_html=True)
-            c4.markdown(f'<div class="metric-card"><h5>Integrity</h5><h2>{100 - (df.isnull().sum().sum()/max(df.size,1))*100:.1f}%</h2></div>', unsafe_allow_html=True)
+            c4.markdown(f'<div class="metric-card"><h5>Integrity</h5><h2>{100 - (df.isnull().sum().sum()/max(df.size, 1))*100:.1f}%</h2></div>', unsafe_allow_html=True)
             
             st.write("### Initial Telemetry Preview")
             st.dataframe(df.head(10), use_container_width=True)
@@ -94,135 +96,126 @@ def main():
             st.dataframe(df.describe().T, use_container_width=True)
             
             col1, col2 = st.columns(2)
+            numeric_df = df.select_dtypes(include=[np.number])
+            
             with col1:
                 st.markdown("#### 🌡️ Heatmap Correlation")
-                numeric_df = df.select_dtypes(include=[np.number])
                 if not numeric_df.empty:
                     fig_corr = px.imshow(numeric_df.corr(), text_auto=True, color_continuous_scale='RdBu_r')
                     st.plotly_chart(fig_corr, use_container_width=True)
             with col2:
                 st.markdown("#### 📈 Distribution Analysis")
-                feat = st.selectbox("Select Feature:", numeric_df.columns)
-                fig_dist = px.histogram(df, x=feat, marginal="box", color_discrete_sequence=['#4FACFE'])
-                st.plotly_chart(fig_dist, use_container_width=True)
+                if not numeric_df.empty:
+                    feat = st.selectbox("Select Feature:", numeric_df.columns)
+                    fig_dist = px.histogram(df, x=feat, marginal="box", color_discrete_sequence=['#4FACFE'])
+                    st.plotly_chart(fig_dist, use_container_width=True)
         else:
             st.info("Please upload a dataset in Step 1.")
 
-    # --- STEP 3: NEURAL PREPROCESSING (FIXES AGE & PATH ISSUES) ---
+    # --- STEP 3: NEURAL PREPROCESSING (FIXED USER_ID & NULLS) ---
     elif menu == "Step 3: Neural Preprocessing":
         st.markdown("### ⚙️ 3.0 Preprocessing & Resampling")
         if 'raw_df' in st.session_state:
             if st.button("🚀 Execute Neural Pipeline"):
                 df = st.session_state['raw_df'].copy()
-                with st.status("Hardening Data Structure...", expanded=True) as status:
+                with st.status("Hardening Data Structure & Fixing User IDs...", expanded=True) as status:
                     
                     # 1. Date Format Correction
-                    df['Date'] = pd.to_datetime(df['Date'], errors='coerce').ffill().bfill()
+                    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+                    df = df.dropna(subset=['Date'])
                     
-                    # 2. SELECTIVE AGGREGATION (Fixes "Different Ages" Issue)
-                    st.write("Applying Selective Resampling...")
+                    # 2. SELECTIVE AGGREGATION
                     agg_map = {}
+                    # Define columns that must remain integers and non-averaged
+                    id_cols = ['User_ID', 'Age']
+                    static_cols = ['Gender', 'Height', 'Weight']
+                    
                     for col in df.columns:
                         if col == 'Date': continue
-                        # Columns that MUST remain constant (Age, Gender, Weight)
-                        if col in ['Age', 'Gender', 'User_ID', 'Height', 'Weight']:
-                            agg_map[col] = 'first'
-                        # Columns to average (Heart Rate, Steps)
+                        if col in id_cols or col in static_cols:
+                            agg_map[col] = 'first' # Do not average IDs or Gender
                         elif pd.api.types.is_numeric_dtype(df[col]):
                             agg_map[col] = 'mean'
-                        # Strings/Categories
                         else:
                             agg_map[col] = 'first'
                     
+                    # Hourly Resampling
                     resampled = df.sort_values('Date').set_index('Date').resample('H').agg(agg_map).reset_index()
-                    st.session_state['resampled_log'] = resampled.head(20)
                     
-                    # 3. Path Creation (Fixes FileNotFoundError)
+                    # 3. ADVANCED NULL PURGING
+                    num_cols = resampled.select_dtypes(include=[np.number]).columns
+                    resampled[num_cols] = resampled[num_cols].interpolate(method='linear')
+                    resampled = resampled.ffill().bfill()
+                    
+                    # 4. DATA TYPE HARDENING (Fixes Decimal User IDs)
+                    for col in id_cols:
+                        if col in resampled.columns:
+                            resampled[col] = resampled[col].astype(int) # Force back to clean integers
+                    
+                    # 5. Path Creation
                     if not os.path.exists('models'):
                         os.makedirs('models')
                     
-                    # 4. Feature Extraction & Interpolation
+                    # 6. Feature Extraction
                     resampled['Hour'] = resampled['Date'].dt.hour
-                    resampled['Day_Type'] = resampled['Date'].dt.dayofweek.apply(lambda x: 'Weekend' if x >= 5 else 'Weekday')
                     
-                    num_cols = resampled.select_dtypes(include=[np.number]).columns
-                    resampled[num_cols] = resampled[num_cols].interpolate(method='linear').ffill().bfill()
+                    # 7. Statistical Anomaly Baseline (Z-Score)
+                    target_col = 'Heart_Rate' if 'Heart_Rate' in resampled.columns else (resampled.select_dtypes(include=[np.number]).columns[0] if not resampled.select_dtypes(include=[np.number]).empty else None)
                     
-                    # 5. Statistical Anomaly Baseline
-                    if 'Heart_Rate' in resampled.columns:
-                        resampled['Z_Score'] = np.abs(stats.zscore(resampled['Heart_Rate']))
+                    if target_col:
+                        resampled['Z_Score'] = np.abs(stats.zscore(resampled[target_col]))
                         resampled['Is_Anomaly'] = (resampled['Z_Score'] > 2.5).astype(int)
                     
                     st.session_state['cleaned_df'] = resampled.copy()
-                    status.update(label="Processing Complete!", state="complete")
+                    status.update(label="Neural Purge Complete! IDs Restored.", state="complete")
                 
-                st.success("Data Normalized. Static Columns (Age/ID) Locked.")
-                st.dataframe(st.session_state['resampled_log'], use_container_width=True)
+                st.success("✅ Dataset Sanitized. User IDs restored to integer format.")
+                
+                p1, p2, p3 = st.columns(3)
+                p1.markdown(f'<div class="metric-card"><h5>Clean Rows</h5><h2>{len(resampled):,}</h2></div>', unsafe_allow_html=True)
+                p2.markdown(f'<div class="metric-card"><h5>Residual Nulls</h5><h2>{resampled.isnull().sum().sum()}</h2></div>', unsafe_allow_html=True)
+                anom_count = resampled['Is_Anomaly'].sum() if 'Is_Anomaly' in resampled else 0
+                p3.markdown(f'<div class="metric-card"><h5>AI Anomalies</h5><h2>{anom_count}</h2></div>', unsafe_allow_html=True)
+                
+                st.write("#### Data Preview (Look at User_ID column)")
+                st.dataframe(resampled.head(20), use_container_width=True)
         else:
             st.info("Please upload a dataset in Step 1.")
 
-    # --- STEP 4: ANOMALY INTELLIGENCE ---
+    # --- STEP 4 & 5 REMAINS THE SAME AS PREVIOUS ---
     elif menu == "Step 4: Anomaly Intelligence":
         st.markdown("### 📊 4.0 AI Health Analytics")
         if 'cleaned_df' in st.session_state:
             df = st.session_state['cleaned_df']
-            
-            st.markdown("#### 📈 Multi-Dimensional Trend Mapping")
             metrics = [c for c in df.select_dtypes(include=[np.number]).columns if 'Anomaly' not in c and 'Z_Score' not in c and 'Hour' not in c]
-            selected = st.multiselect("Select Telemetry:", metrics, default=metrics[:1])
+            selected = st.multiselect("Select Telemetry:", metrics, default=metrics[:1] if metrics else [])
             if selected:
-                fig = px.line(df.head(500), x='Date', y=selected, template="plotly_dark")
-                st.plotly_chart(fig, use_container_width=True)
-            
-            st.divider()
+                st.plotly_chart(px.line(df.head(500), x='Date', y=selected, template="plotly_dark"), use_container_width=True)
             c1, c2 = st.columns([2, 1])
             with c1:
-                y_axis = 'Heart_Rate' if 'Heart_Rate' in df.columns else metrics[0]
-                fig_scatter = px.scatter(df.head(500), x='Date', y=y_axis, color='Is_Anomaly',
-                                         color_continuous_scale=['#4FACFE', '#FF4B4B'], title="Detected Deviations")
-                st.plotly_chart(fig_scatter, use_container_width=True)
+                y_ax = 'Heart_Rate' if 'Heart_Rate' in df.columns else (metrics[0] if metrics else None)
+                if y_ax:
+                    st.plotly_chart(px.scatter(df.head(500), x='Date', y=y_ax, color='Is_Anomaly', color_continuous_scale=['#4FACFE', '#FF4B4B']), use_container_width=True)
             with c2:
-                fig_pie = px.pie(df, names='Is_Anomaly', hole=0.5, color='Is_Anomaly',
-                                color_discrete_map={0:'#4FACFE', 1:'#FF4B4B'}, title="Data Health Ratio")
-                st.plotly_chart(fig_pie, use_container_width=True)
+                if 'Is_Anomaly' in df.columns:
+                    st.plotly_chart(px.pie(df, names='Is_Anomaly', hole=0.5, color_discrete_map={0:'#4FACFE', 1:'#FF4B4B'}), use_container_width=True)
         else:
-            st.info("Execute Preprocessing in Step 3.")
+            st.info("Execute Preprocessing first.")
 
-    # --- STEP 5: FINAL AUDIT & EXPORT ---
     elif menu == "Step 5: Final Audit & Export":
         st.markdown("### 📋 5.0 Comprehensive Technical Audit")
         if 'cleaned_df' in st.session_state:
             df = st.session_state['cleaned_df']
             st.markdown('<div class="report-box">', unsafe_allow_html=True)
-            st.markdown("#### 🔍 Verification Report")
-            
             aud_c1, aud_c2, aud_c3 = st.columns(3)
-            with aud_c1:
-                st.markdown(f"<h3 style='color: #00FFCC;'>VERIFIED CLEAN</h3>", unsafe_allow_html=True)
-                st.write(f"Residual Nulls: **0**")
-            with aud_c2:
-                st.markdown(f"<h3 style='color: #FF4B4B;'>{df['Is_Anomaly'].sum()} Flagged</h3>", unsafe_allow_html=True)
-                st.write("Method: Statistical Outlier")
-            with aud_c3:
-                unique_ages = df['Age'].nunique()
-                st.markdown(f"<h3 style='color: #4FACFE;'>STATIC AGE</h3>", unsafe_allow_html=True)
-                st.write(f"Unique Age values: **{unique_ages}**")
-            
-            st.markdown("---")
-            st.write("**Final Deliverables Status:**")
-            st.markdown("""
-            * **Neural EDA**: Distributions and Correlations analyzed.
-            * **Resampling Fix**: Age and IDs maintained as static constants.
-            * **Path Handling**: Automated `models/` directory creation.
-            * **Anomaly Logic**: Z-Score engine deployed.
-            """)
+            aud_c1.metric("RESIDUAL NULLS", f"{df.isnull().sum().sum()}", delta="CLEAN")
+            aud_c2.metric("ANOMALIES", f"{df['Is_Anomaly'].sum()}")
+            # Verify IDs are still ints
+            id_status = "INT" if pd.api.types.is_integer_dtype(df['User_ID']) else "FLOAT"
+            aud_c3.metric("ID FORMAT", id_status)
             st.markdown('</div>', unsafe_allow_html=True)
-            
             st.dataframe(df.head(50), use_container_width=True)
-            csv = df.to_csv(index=False).encode('utf-8')
-            st.download_button("💾 Download Audit Dataset", csv, "FitPulse_Final.csv", "text/csv")
-        else:
-            st.info("Complete steps 1-4 first.")
+            st.download_button("💾 Download Clean Dataset", df.to_csv(index=False).encode('utf-8'), "FitPulse_Final.csv", "text/csv")
 
 if __name__ == "__main__":
     main()
