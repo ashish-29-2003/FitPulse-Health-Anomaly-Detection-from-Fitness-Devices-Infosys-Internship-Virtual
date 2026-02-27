@@ -13,7 +13,7 @@ except ImportError:
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
     page_title="FitPulse Pro | AI Anomaly Engine",
-    page_icon="⚡",
+    page_icon="🩺",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -49,7 +49,7 @@ st.markdown("""
 def main():
     # --- SIDEBAR: WORKFLOW ---
     with st.sidebar:
-        st.markdown("<h2 style='color: #4FACFE;'>⚡ FitPulse Engine</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='color: #4FACFE;'>🩺 FitPulse Engine</h2>", unsafe_allow_html=True)
         st.caption("Infosys Springboard Virtual Internship")
         st.divider()
         menu = st.radio("Project Workflow:", 
@@ -59,20 +59,13 @@ def main():
                          "Step 4: Anomaly Intelligence", 
                          "Step 5: Final Audit & Export"])
         
-        st.divider()
-        st.markdown("### 🏆 Milestone Tracker")
-        st.write("✅ Preprocessing & Static Consistency")
-        st.write("✅ Time-Series Normalization")
-        st.write("✅ Exploratory Analysis")
-        st.write("✅ AI Anomaly Logic")
-        st.divider()
-        st.info("System Engine: Python v3.10")
+      
 
     st.markdown('<h1 class="main-header">🩺 FitPulse Intelligence Dashboard</h1>', unsafe_allow_html=True)
 
     # --- STEP 1: DATA INGESTION ---
     if menu == "Step 1: Data Ingestion":
-        st.markdown("### 📥 1.0 Data Stream Ingestion")
+        st.markdown("###   Data Stream Ingestion")
         uploaded_file = st.file_uploader("Upload Health Telemetry CSV", type=["csv"])
         if uploaded_file:
             st.session_state['raw_df'] = pd.read_csv(uploaded_file)
@@ -89,22 +82,22 @@ def main():
 
     # --- STEP 2: NEURAL EXPLORATORY ANALYSIS (EDA) ---
     elif menu == "Step 2: Neural Exploratory Analysis":
-        st.markdown("### 🔍 2.0 Neural Exploratory Analysis")
+        st.markdown("###  Neural Exploratory Analysis")
         if 'raw_df' in st.session_state:
             df = st.session_state['raw_df']
-            st.markdown("#### 📊 Descriptive Stats")
+            st.markdown("#### Descriptive Stats")
             st.dataframe(df.describe().T, use_container_width=True)
             
             col1, col2 = st.columns(2)
             numeric_df = df.select_dtypes(include=[np.number])
             
             with col1:
-                st.markdown("#### 🌡️ Heatmap Correlation")
+                st.markdown("####  Heatmap Correlation")
                 if not numeric_df.empty:
                     fig_corr = px.imshow(numeric_df.corr(), text_auto=True, color_continuous_scale='RdBu_r')
                     st.plotly_chart(fig_corr, use_container_width=True)
             with col2:
-                st.markdown("#### 📈 Distribution Analysis")
+                st.markdown("#### Distribution Analysis")
                 if not numeric_df.empty:
                     feat = st.selectbox("Select Feature:", numeric_df.columns)
                     fig_dist = px.histogram(df, x=feat, marginal="box", color_discrete_sequence=['#4FACFE'])
@@ -114,9 +107,9 @@ def main():
 
     # --- STEP 3: NEURAL PREPROCESSING (FIXED USER_ID & NULLS) ---
     elif menu == "Step 3: Neural Preprocessing":
-        st.markdown("### ⚙️ 3.0 Preprocessing & Resampling")
+        st.markdown("###  Preprocessing & Resampling")
         if 'raw_df' in st.session_state:
-            if st.button("🚀 Execute Neural Pipeline"):
+            if st.button("Execute Neural Pipeline"):
                 df = st.session_state['raw_df'].copy()
                 with st.status("Hardening Data Structure & Fixing User IDs...", expanded=True) as status:
                     
@@ -169,7 +162,7 @@ def main():
                     st.session_state['cleaned_df'] = resampled.copy()
                     status.update(label="Neural Purge Complete! IDs Restored.", state="complete")
                 
-                st.success("✅ Dataset Sanitized. User IDs restored to integer format.")
+                st.success("Dataset Sanitized. User IDs restored to integer format.")
                 
                 p1, p2, p3 = st.columns(3)
                 p1.markdown(f'<div class="metric-card"><h5>Clean Rows</h5><h2>{len(resampled):,}</h2></div>', unsafe_allow_html=True)
@@ -184,7 +177,7 @@ def main():
 
     # --- STEP 4 & 5 REMAINS THE SAME AS PREVIOUS ---
     elif menu == "Step 4: Anomaly Intelligence":
-        st.markdown("### 📊 4.0 AI Health Analytics")
+        st.markdown("###  AI Health Analytics")
         if 'cleaned_df' in st.session_state:
             df = st.session_state['cleaned_df']
             metrics = [c for c in df.select_dtypes(include=[np.number]).columns if 'Anomaly' not in c and 'Z_Score' not in c and 'Hour' not in c]
@@ -203,7 +196,7 @@ def main():
             st.info("Execute Preprocessing first.")
 
     elif menu == "Step 5: Final Audit & Export":
-        st.markdown("### 📋 5.0 Comprehensive Technical Audit")
+        st.markdown("###  Comprehensive Technical Audit")
         if 'cleaned_df' in st.session_state:
             df = st.session_state['cleaned_df']
             st.markdown('<div class="report-box">', unsafe_allow_html=True)
@@ -215,7 +208,7 @@ def main():
             aud_c3.metric("ID FORMAT", id_status)
             st.markdown('</div>', unsafe_allow_html=True)
             st.dataframe(df.head(50), use_container_width=True)
-            st.download_button("💾 Download Clean Dataset", df.to_csv(index=False).encode('utf-8'), "FitPulse_Final.csv", "text/csv")
+            st.download_button(" Download Clean Dataset", df.to_csv(index=False).encode('utf-8'), "FitPulse_Final.csv", "text/csv")
 
 if __name__ == "__main__":
     main()
