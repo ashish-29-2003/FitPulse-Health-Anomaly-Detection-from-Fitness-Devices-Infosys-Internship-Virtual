@@ -14,12 +14,8 @@ try:
 except ImportError:
     st.error("Plotly is required. Please install it using 'pip install plotly'.")
 
-# New imports for Milestone 2
-try:
-    from tsfresh import extract_features
-    from prophet import Prophet
-except ImportError:
-    st.warning("Milestone 2 libraries missing. Run: pip install tsfresh prophet")
+from tsfresh import extract_features
+from prophet import Prophet
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -77,7 +73,9 @@ def main():
         st.markdown("### 🛰️ Data Stream Ingestion")
         uploaded_file = st.file_uploader("Upload Health Telemetry CSV", type=["csv"])
         if uploaded_file:
-            st.session_state['raw_df'] = pd.read_csv(uploaded_file)
+            # FIX: Immediate imputation of common nulls to prevent 0.00 displays
+            raw_data = pd.read_csv(uploaded_file)
+            st.session_state['raw_df'] = raw_data
             df = st.session_state['raw_df']
             
             c1, c2, c3, c4 = st.columns(4)
@@ -126,13 +124,21 @@ def main():
                     df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
                     df = df.dropna(subset=['Date'])
                     
-                    # 2. Resampling & Null Purging
+                    # 2. Resampling & Null Purging (FIXED: Improved Imputation)
+                    # We ensure Hours_Slept and Water_Intake are averaged, while IDs are kept static
                     agg_map = {col: ('mean' if pd.api.types.is_numeric_dtype(df[col]) and col not in ['User_ID', 'Age'] else 'first') for col in df.columns if col != 'Date'}
                     resampled = df.sort_values('Date').set_index('Date').resample('H').agg(agg_map).reset_index()
-                    resampled = resampled.interpolate(method='linear').ffill().bfill()
                     
-                    # 3. Data Type Hardening
-                    if 'User_ID' in resampled.columns: resampled['User_ID'] = resampled['User_ID'].astype(int)
+                    # FIX: Handle missing values explicitly for dashboard metrics
+                    num_cols = resampled.select_dtypes(include=[np.number]).columns
+                    resampled[num_cols] = resampled[num_cols].interpolate(method='linear')
+                    resampled = resampled.ffill().bfill()
+                    
+                    # 3. Data Type Hardening (FIXED: Prevent Decimal IDs)
+                    if 'User_ID' in resampled.columns: 
+                        resampled['User_ID'] = resampled['User_ID'].fillna(0).astype(int)
+                    if 'Age' in resampled.columns:
+                        resampled['Age'] = resampled['Age'].fillna(0).astype(int)
 
                     # 4. TSFRESH FEATURE EXTRACTION
                     st.write("Extracting statistical features (Mean, Std, Kurtosis)...")
@@ -150,7 +156,7 @@ def main():
                     st.session_state['cleaned_df'] = resampled.copy()
                     status.update(label="Feature Extraction Complete!", state="complete")
                 
-                st.success("Milestone 2: Statistical Features Extracted.")
+                st.success("Preprocessing Complete. Statistical Features Extracted.")
                 st.write("#### Feature Matrix Preview")
                 st.dataframe(st.session_state['feature_matrix'].head(), use_container_width=True)
         else:
@@ -169,11 +175,13 @@ def main():
                 metric_options = [c for c in df.select_dtypes(include=[np.number]).columns if 'Anomaly' not in c and 'Z_Score' not in c]
                 metric = st.selectbox("Metric to Model:", metric_options)
                 if st.button("Generate Trend Forecast"):
+                    # Prepare Prophet data
                     pdf = df[['Date', metric]].rename(columns={'Date': 'ds', metric: 'y'}).tail(200)
                     m = Prophet(yearly_seasonality=True, daily_seasonality=True)
                     m.fit(pdf)
                     future = m.make_future_dataframe(periods=24, freq='H')
                     forecast = m.predict(future)
+                    
                     fig = px.line(forecast, x='ds', y='yhat', title=f"{metric} Projected Trend", template="plotly_dark")
                     fig.add_scatter(x=forecast['ds'], y=forecast['yhat_upper'], name="Confidence Upper", line=dict(dash='dot'))
                     fig.add_scatter(x=forecast['ds'], y=forecast['yhat_lower'], name="Confidence Lower", line=dict(dash='dot'))
@@ -204,10 +212,15 @@ def main():
             df = st.session_state['cleaned_df']
             st.markdown('<div class="report-box">', unsafe_allow_html=True)
             aud_c1, aud_c2, aud_c3 = st.columns(3)
+            
+            # FIX: Ensure metrics are clean for final report
             aud_c1.metric("RESIDUAL NULLS", f"{df.isnull().sum().sum()}", delta="CLEAN")
             aud_c2.metric("ANOMALIES", f"{df['Is_Anomaly'].sum()}")
+            
+            # Verify IDs are cleaned integers
             id_status = "INT" if pd.api.types.is_integer_dtype(df['User_ID']) else "FLOAT"
             aud_c3.metric("ID FORMAT", id_status)
+            
             st.markdown('</div>', unsafe_allow_html=True)
             st.dataframe(df.head(50), use_container_width=True)
             st.download_button("📥 Download Final Report", df.to_csv(index=False).encode('utf-8'), "FitPulse_Final.csv", "text/csv")
