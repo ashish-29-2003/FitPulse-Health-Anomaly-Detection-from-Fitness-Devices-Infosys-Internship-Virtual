@@ -55,6 +55,7 @@ st.markdown("""
     .insight-box {
         background: rgba(79, 172, 254, 0.08); border-left: 6px solid #4FACFE;
         padding: 20px; border-radius: 10px; margin: 15px 0; font-family: 'Segoe UI', sans-serif;
+        font-size: 0.95rem; line-height: 1.6; color: #E0E0E0;
     }
     
     .stButton>button {
@@ -73,201 +74,225 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# --- HELPER FUNCTIONS ---
+def map_biometric_columns(df):
+    mapping = {}
+    cols = df.columns
+    hr_matches = [c for c in cols if 'heart' in c.lower() or 'bpm' in c.lower()]
+    if hr_matches: mapping['Heart_Rate'] = hr_matches[0]
+    step_matches = [c for c in cols if 'step' in c.lower()]
+    if step_matches: mapping['Steps_Taken'] = step_matches[0]
+    sleep_matches = [c for c in cols if 'sleep' in c.lower() or 'slp' in c.lower()]
+    if sleep_matches: mapping['Hours_Slept'] = sleep_matches[0]
+    return mapping
+
 def generate_radar_chart(df, categories):
-    """Displays the 'Biometric Signature' of Anomaly vs Normal states"""
     normal_avg = df[df['Is_Anomaly'] == 0][categories].mean()
     anomaly_avg = df[df['Is_Anomaly'] == 1][categories].mean()
-    
     fig = go.Figure()
-    fig.add_trace(go.Scatterpolar(r=normal_avg, theta=categories, fill='toself', name='Baseline Health', line_color='#4FACFE'))
-    fig.add_trace(go.Scatterpolar(r=anomaly_avg, theta=categories, fill='toself', name='Anomaly Event', line_color='#FF4B4B'))
-    
-    fig.update_layout(
-        polar=dict(radialaxis=dict(visible=True, range=[-1, 2], gridcolor="#30363D")),
-        template="plotly_dark", showlegend=True, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
-    )
+    fig.add_trace(go.Scatterpolar(r=normal_avg, theta=categories, fill='toself', name='Healthy Average', line_color='#4FACFE'))
+    fig.add_trace(go.Scatterpolar(r=anomaly_avg, theta=categories, fill='toself', name='Abnormal Event', line_color='#FF4B4B'))
+    fig.update_layout(polar=dict(radialaxis=dict(visible=True, gridcolor="#30363D")),
+                      template="plotly_dark", showlegend=True, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
     return fig
 
 def main():
     with st.sidebar:
-        st.markdown("<h2 style='color: #4FACFE;'>🩺 FitPulse Watch</h2>", unsafe_allow_html=True)
-        st.caption("Ecosystem Synchronized")
+        st.markdown("<h2 style='color: #4FACFE;'>🩺 FitPulse Settings</h2>", unsafe_allow_html=True)
+        st.caption("AI Watch Synchronization Active")
         st.divider()
         menu = st.radio("Intelligence Modules:", 
                         ["Device Connectivity", "Spatial Bio-Mapping", "Neural Hardening", "Behavioral Inference", "Integrity Audit"])
-        
         st.divider()
-        st.subheader("Anomaly Thresholds")
-        hr_threshold = st.slider("Heart Rate Threshold (BPM)", 60, 200, 120)
-        z_score_threshold = st.slider("Z-Score Sensitivity", 1.0, 5.0, 2.5)
+        st.subheader("Sensitivity Settings")
+        hr_threshold = st.slider("Alert if Heart Rate >", 60, 200, 120, help="Manually set your high heart rate alert limit.")
+        z_score_threshold = st.slider("AI Sensitivity (Z-Score)", 1.0, 5.0, 2.5, help="Lower = More alerts. Higher = Only major anomalies.")
 
     st.markdown('<h1 class="device-header"> 🩺 FitPulse Intelligence Hub</h1>', unsafe_allow_html=True)
 
-    # --- MODULE 1: DEVICE CONNECTIVITY ---
+    # --- DEVICE CONNECTIVITY ---
     if menu == "Device Connectivity":
-        st.markdown("### <span class='pulse'></span>Telemetry Data Stream", unsafe_allow_html=True)
-        uploaded_file = st.file_uploader("Sync Device Data (CSV/JSON)", type=["csv", "json"])
+        st.markdown("### <span class='pulse'></span>Data Integration Station", unsafe_allow_html=True)
+        uploaded_file = st.file_uploader("Upload your watch data (CSV or JSON)", type=["csv", "json"])
         if uploaded_file:
-            if uploaded_file.name.endswith('.csv'):
-                st.session_state['raw_df'] = pd.read_csv(uploaded_file)
-            else:
-                st.session_state['raw_df'] = pd.read_json(uploaded_file)
+            df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_json(uploaded_file)
+            initial_count, initial_nulls = len(df), df.isnull().sum().sum()
+            df = df.drop_duplicates().reset_index(drop=True)
+            st.session_state['raw_df'] = df
             
-            df = st.session_state['raw_df']
-            
+            st.markdown("#### ✅ File Upload Successful")
             c1, c2, c3, c4 = st.columns(4)
-            c1.markdown(f'<div class="metric-card"><h5>Sync Points</h5><h2>{len(df):,}</h2></div>', unsafe_allow_html=True)
-            c2.markdown(f'<div class="metric-card"><h5>Vital Sensors</h5><h2>{len(df.columns)}</h2></div>', unsafe_allow_html=True)
-            c3.markdown(f'<div class="metric-card"><h5>Null Gaps</h5><h2>{df.isnull().sum().sum()}</h2></div>', unsafe_allow_html=True)
-            c4.markdown(f'<div class="metric-card"><h5>Sync Integrity</h5><h2>{100 - (df.isnull().sum().sum()/max(df.size, 1))*100:.1f}%</h2></div>', unsafe_allow_html=True)
+            c1.markdown(f'<div class="metric-card"><h5>Total Readings</h5><h2>{len(df):,}</h2></div>', unsafe_allow_html=True)
+            c2.markdown(f'<div class="metric-card"><h5>Metrics Tracked</h5><h2>{len(df.columns)}</h2></div>', unsafe_allow_html=True)
+            c3.markdown(f'<div class="metric-card"><h5>Fixed Errors</h5><h2>{initial_nulls}</h2></div>', unsafe_allow_html=True)
+            c4.markdown(f'<div class="metric-card"><h5>Data Quality</h5><h2>{100 - (initial_nulls/max(df.size,1))*100:.1f}%</h2></div>', unsafe_allow_html=True)
             
+            st.markdown("""<div class="insight-box"><b>User Guide:</b> Your data has been synced. We fixed any missing sensor gaps 
+            so the AI can analyze your health without interruptions. You can see a preview of your raw data below.</div>""", unsafe_allow_html=True)
             st.dataframe(df.head(15), use_container_width=True)
 
     # --- SPATIAL BIO-MAPPING ---
     elif menu == "Spatial Bio-Mapping":
-        st.markdown("### 3D Vital Feature Mapping")
+        st.markdown("### 📊 Health Pattern Visualization")
         if 'raw_df' in st.session_state:
             df = st.session_state['raw_df']
             numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
             
+            st.subheader("Your Health in 3D Space")
             if len(numeric_cols) >= 3:
-                fig_3d = px.scatter_3d(
-                    df.head(1000), x=numeric_cols[0], y=numeric_cols[1], z=numeric_cols[2], 
-                    color=numeric_cols[0], template="plotly_dark", height=700,
-                    color_continuous_scale='Viridis'
-                )
+                fig_3d = px.scatter_3d(df.head(1000), x=numeric_cols[0], y=numeric_cols[1], z=numeric_cols[2], 
+                                      color=numeric_cols[0], template="plotly_dark", height=700, color_continuous_scale='Viridis',
+                                      labels={numeric_cols[0]: 'Primary Metric', numeric_cols[1]: 'Secondary Metric', numeric_cols[2]: 'Tertiary Metric'})
                 st.plotly_chart(fig_3d, use_container_width=True)
-            
+                st.info("💡 Tip: Look for clusters! If your data forms tight groups, your health habits are consistent.")
+
             col1, col2 = st.columns(2)
             with col1:
-                st.markdown("#### Metric Distribution Analysis")
-                feat = st.selectbox("Select Vital Metric:", numeric_cols)
-                st.plotly_chart(px.histogram(df, x=feat, marginal="violin", color_discrete_sequence=['#4FACFE'], template="plotly_dark"), use_container_width=True)
+                st.markdown("#### Metric Consistency")
+                feat = st.selectbox("Select a metric to examine:", numeric_cols)
+                fig_hist = px.histogram(df, x=feat, marginal="violin", template="plotly_dark", color_discrete_sequence=['#4FACFE'])
+                st.plotly_chart(fig_hist, use_container_width=True)
+                st.markdown(f"""<div class="insight-box"><b>What am I seeing?</b> This shows the range of your <b>{feat}</b>. 
+                The wider parts of the 'violin' shape show where your readings usually sit. Narrow tails represent rare spikes.</div>""", unsafe_allow_html=True)
             with col2:
-                st.markdown("#### Neural Correlation Heatmap")
-                st.plotly_chart(px.imshow(df[numeric_cols].corr(), text_auto=True, color_continuous_scale='RdBu_r', template="plotly_dark"), use_container_width=True)
+                st.markdown("#### Vital Metric Connections")
+                st.plotly_chart(px.imshow(df[numeric_cols].corr(), text_auto=True, template="plotly_dark", color_continuous_scale='RdBu_r'), use_container_width=True)
+                st.markdown("""<div class="insight-box"><b>What am I seeing?</b> This grid shows how your body reacts together. 
+                For example, a high score between 'Steps' and 'Heart Rate' is normal. A low score might mean your heart rate is rising while you are sitting still.</div>""", unsafe_allow_html=True)
         else:
-            st.info("Sync device connectivity to access mapping.")
+            st.info("Please sync your device first in the 'Device Connectivity' module.")
 
-    # --- MODULE 1 & 2: NEURAL HARDENING ---
+    # --- NEURAL HARDENING ---
     elif menu == "Neural Hardening":
-        st.markdown("### Preprocessing & AI Hardening")
+        st.markdown("### 🧠 AI Health Calibration")
         if 'raw_df' in st.session_state:
-            granularity = st.select_slider("Select Time Alignment Granularity (Milestone 1):", options=['1min', '30min', 'H', 'D'], value='H')
+            df = st.session_state['raw_df'].copy()
+            mapped_cols = map_biometric_columns(df)
+            granularity = st.select_slider("Time View Detail:", options=['1min', '30min', 'H', 'D'], value='H', help="H = Hourly averages. D = Daily averages.")
             
-            if st.button("Initialize Neural Pipeline"):
-                df = st.session_state['raw_df'].copy()
-                with st.status("Executing Neural Pipeline...", expanded=True) as status:
+            if st.button("Start AI Calibration"):
+                with st.status("AI Analyzing Patterns...", expanded=True) as status:
                     df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
                     df = df.dropna(subset=['Date'])
-                    
                     agg_map = {col: ('mean' if pd.api.types.is_numeric_dtype(df[col]) and col not in ['User_ID', 'Age'] else 'first') for col in df.columns if col != 'Date'}
                     resampled = df.sort_values('Date').set_index('Date').resample(granularity).agg(agg_map).reset_index()
-                    
                     resampled = resampled.interpolate(method='linear').ffill().bfill()
                     
-                    target_cols = [c for c in ['Heart_Rate', 'Steps_Taken', 'Hours_Slept'] if c in resampled.columns]
-                    if target_cols:
-                        st.session_state['feature_matrix'] = extract_features(resampled[['User_ID', 'Date'] + target_cols].fillna(0), column_id='User_ID', column_sort='Date').dropna(axis=1)
-
-                    target_col = 'Heart_Rate' if 'Heart_Rate' in resampled.columns else resampled.select_dtypes(include=[np.number]).columns[0]
-                    resampled['Z_Score'] = np.abs(stats.zscore(resampled[target_col]))
-                    resampled['Is_Anomaly'] = ((resampled['Z_Score'] > z_score_threshold) | (resampled[target_col] > hr_threshold)).astype(int)
+                    hr_col = mapped_cols.get('Heart_Rate', 'Heart_Rate')
+                    if hr_col in resampled.columns:
+                        resampled['HR_Rolling_Avg'] = resampled[hr_col].rolling(window=3).mean()
+                        resampled['Z_Score'] = np.abs(stats.zscore(resampled[hr_col].fillna(0)))
+                        resampled['Is_Anomaly'] = ((resampled['Z_Score'] > z_score_threshold) | (resampled[hr_col] > hr_threshold)).astype(int)
                     
                     st.session_state['cleaned_df'] = resampled.copy()
-                    status.update(label="Hardening Complete!", state="complete")
-                st.success("Watch data sanitized and calibrated.")
-
+                    st.session_state['mapped_cols'] = mapped_cols
+                    status.update(label="Calibration Complete!", state="complete")
+            
             if 'cleaned_df' in st.session_state:
-                st.divider()
-                st.subheader("Cleaned Dataset Preview")
-                st.dataframe(st.session_state['cleaned_df'].head(20), use_container_width=True)
-                null_count = st.session_state['cleaned_df'].isnull().sum().sum()
-                st.info(f"Integrity Check: **{null_count}** null values remaining.")
+                st.success("Success: Your health patterns have been calculated.")
+                st.markdown("""<div class="insight-box"><b>Calibration Brief:</b> We have created a 'Rolling Average' for your heart rate. 
+                This smooths out tiny glitches to show your true heart trend. Any row highlighted in your Audit report (Module 4) 
+                is based on this AI analysis.</div>""", unsafe_allow_html=True)
+                st.dataframe(st.session_state['cleaned_df'].head(10), use_container_width=True)
         else:
-            st.info("Sync device connectivity to initialize hardening.")
+            st.info("Sync device data first.")
 
-    # --- MODULE 2 & 3: BEHAVIORAL INFERENCE ---
+    # --- BEHAVIORAL INFERENCE ---
     elif menu == "Behavioral Inference":
-        st.markdown("### Behavioral Intelligence & Forecasting")
+        st.markdown("### 🧬 AI Diagnostics & Future Trends")
         if 'cleaned_df' in st.session_state:
             df = st.session_state['cleaned_df']
-            
-            tab1, tab2, tab3 = st.tabs(["Health Signature", "Cluster Analysis", "Neural Forecast"])
+            tab1, tab2, tab3 = st.tabs(["Health Signature", "Activity Clusters", "Future Predictions"])
             
             with tab1:
-                st.markdown("#### Multi-Variate Anomaly Signature")
+                st.markdown("#### Normal vs. Abnormal Comparison")
                 biometrics = [c for c in ['Heart_Rate', 'Steps_Taken', 'Hours_Slept'] if c in df.columns]
                 if biometrics:
                     scaled_df = df.copy()
                     scaled_df[biometrics] = StandardScaler().fit_transform(df[biometrics])
                     st.plotly_chart(generate_radar_chart(scaled_df, biometrics), use_container_width=True)
+                    st.markdown("""<div class="insight-box"><b>How to Read:</b> The <b>Blue Area</b> is your usual healthy shape. 
+                    The <b>Red Area</b> shows what happens to your body during an anomaly. 
+                    A red shape much larger than the blue suggests your body was under high stress.</div>""", unsafe_allow_html=True)
 
             with tab2:
-                st.markdown("#### Behavioral Clusters (PCA Projection)")
+                st.markdown("#### Lifestyle Groups")
                 if 'feature_matrix' in st.session_state:
                     scaled = StandardScaler().fit_transform(st.session_state['feature_matrix'])
                     pca = PCA(n_components=2).fit_transform(scaled)
-                    pdf = pd.DataFrame(pca, columns=['PC1', 'PC2'])
-                    pdf['Cluster'] = KMeans(n_clusters=3, random_state=42).fit(scaled).labels_.astype(str)
-                    st.plotly_chart(px.scatter(pdf, x='PC1', y='PC2', color='Cluster', title="Behavioral Clusters", template="plotly_dark"), use_container_width=True)
+                    pdf = pd.DataFrame(pca, columns=['Dimension A', 'Dimension B'])
+                    pdf['Group'] = KMeans(n_clusters=3, random_state=42).fit(scaled).labels_.astype(str)
+                    st.plotly_chart(px.scatter(pdf, x='Dimension A', y='Dimension B', color='Group', template="plotly_dark", title="AI Behavior Grouping"), use_container_width=True)
+                    st.markdown("""<div class="insight-box"><b>AI Insight:</b> This chart groups similar days together. 
+                    One color might represent 'Lazy Days' and another 'Workout Days.' Points that don't fit into a group are 
+                    unusual lifestyle patterns.</div>""", unsafe_allow_html=True)
 
             with tab3:
-                st.markdown("#### Trend Modeling (Prophet)")
-                metric = st.selectbox("Predict Metric Trend:", [c for c in df.select_dtypes(include=[np.number]).columns if 'Anomaly' not in c])
-                if st.button("Generate Forecast"):
+                st.markdown("#### 🔮 24-Hour Predictive Forecast")
+                metric = st.selectbox("Predict for:", [c for c in df.select_dtypes(include=[np.number]).columns if 'Anomaly' not in c])
+                if st.button("Calculate Forecast"):
                     pdf = df[['Date', metric]].rename(columns={'Date': 'ds', metric: 'y'}).tail(200)
                     m = Prophet(daily_seasonality=True).fit(pdf)
                     forecast = m.predict(m.make_future_dataframe(periods=24, freq='H'))
-                    fig = px.line(forecast, x='ds', y='yhat', title=f"Predicted 24h {metric} Trend", template="plotly_dark")
-                    st.plotly_chart(fig, use_container_width=True)
+                    fig_prophet = px.line(forecast, x='ds', y='yhat', template="plotly_dark", title=f"Expected {metric} Trend")
+                    st.plotly_chart(fig_prophet, use_container_width=True)
+                    st.markdown("""<div class="insight-box"><b>Forecast Brief:</b> This AI prediction shows your <i>expected</i> health trend. 
+                    If your real readings tomorrow differ greatly from this line, the system will flag it as a potential concern.</div>""", unsafe_allow_html=True)
         else:
-            st.info("Initialize Neural Hardening to access diagnostics.")
+            st.info("Complete 'Neural Hardening' to see predictions.")
 
-    # --- MODULE 4: INTEGRITY AUDIT ---
+    # --- INTEGRITY AUDIT ---
     elif menu == "Integrity Audit":
-        st.markdown("### Technical Health Audit & Reporting")
+        st.markdown("### 🚨 Health Security Audit")
         if 'cleaned_df' in st.session_state:
             df = st.session_state['cleaned_df'].copy()
+            mapped_cols = st.session_state.get('mapped_cols', {})
+            hr_col = mapped_cols.get('Heart_Rate', 'Heart_Rate') if mapped_cols.get('Heart_Rate') in df.columns else df.select_dtypes(include=[np.number]).columns[0]
+            
+            df['Date'] = pd.to_datetime(df['Date'])
             anomalies = df[df['Is_Anomaly'] == 1].copy()
             
-            if not anomalies.empty:
-                # Milestone 3: Step 6 - Anomaly Highlight Graph
-                st.markdown("#### Heart Rate Anomaly Detections")
-                fig_detect = px.line(df, x='Date', y='Heart_Rate', title="Continuous Pulse Stream with Flags")
-                fig_detect.add_trace(go.Scatter(
-                    x=anomalies['Date'], y=anomalies['Heart_Rate'],
-                    mode='markers', name='Anomaly Flag',
-                    marker=dict(color='red', size=10, symbol='circle-open')
-                ))
-                st.plotly_chart(fig_detect, use_container_width=True)
+            st.markdown("#### 🛑 Critical Safety Alerts")
+            critical_events = df[df[hr_col] > hr_threshold]
+            if not critical_events.empty:
+                st.error(f"ALERT: Detected {len(critical_events)} events where Heart Rate exceeded your {hr_threshold} BPM limit.")
+                with st.expander("View Alarm History"):
+                    st.table(critical_events[['Date', hr_col]].tail(10))
+            else:
+                st.success(f"No Heart Rate spikes above {hr_threshold} BPM detected.")
 
-                # Milestone 4: Temporal Anomaly Hotspots (Sunburst)
+            if not anomalies.empty:
+                st.markdown("#### Continuous Anomaly Tracker")
+                fig_detect = px.line(df, x='Date', y=hr_col, title="Your Pulse Stream", template="plotly_dark")
+                fig_detect.add_trace(go.Scatter(x=anomalies['Date'], y=anomalies[hr_col], mode='markers', name='Flagged Event', marker=dict(color='red', size=10)))
+                st.plotly_chart(fig_detect, use_container_width=True)
+                st.markdown("""<div class="insight-box"><b>How to Read:</b> The blue line is your pulse. <b>Red Dots</b> are where the AI felt something 
+                was wrong (based on your Z-Score sensitivity). If red dots appear in a cluster, it means a prolonged abnormal event occurred.</div>""", unsafe_allow_html=True)
+
                 anomalies['Day'] = anomalies['Date'].dt.day_name()
                 anomalies['Hour'] = anomalies['Date'].dt.hour.astype(str) + ":00"
                 
                 c1, c2 = st.columns([2, 1])
                 with c1:
-                    st.markdown("#### Temporal Hotspot Analysis")
-                    fig_sun = px.sunburst(anomalies, path=['Day', 'Hour'], values='Z_Score', 
-                                          color='Heart_Rate', template="plotly_dark", height=600, 
-                                          color_continuous_scale='Reds', title="Anomaly Distribution by Time")
+                    st.markdown("#### 🕒 When do Anomalies happen?")
+                    fig_sun = px.sunburst(anomalies, path=['Day', 'Hour'], values='Z_Score', color=hr_col, 
+                                          template="plotly_dark", height=600, color_continuous_scale='Reds')
                     st.plotly_chart(fig_sun, use_container_width=True)
-                
                 with c2:
-                    st.markdown("#### Diagnostic Summary")
-                    st.metric("Detected Events", len(anomalies))
+                    st.metric("Abnormal Events", len(anomalies))
                     st.metric("Avg Intensity", f"{anomalies['Z_Score'].mean():.2f}")
-                    st.metric("Peak Stress (BPM)", int(anomalies['Heart_Rate'].max()))
+                    st.metric("Highest Pulse", int(anomalies[hr_col].max()))
+                
+                st.markdown("""<div class="insight-box"><b>Sunburst Brief:</b> This chart groups your health flags. 
+                The <b>Inner Circle</b> is the day, and the <b>Outer Circle</b> is the hour. 
+                Large slices indicate recurring times when your health patterns were unusual.</div>""", unsafe_allow_html=True)
+                
+                st.divider()
+                st.download_button("📥 Download Medical Audit (CSV)", anomalies.to_csv(index=False).encode('utf-8'), "Health_Audit_Report.csv", "text/csv")
             else:
-                st.warning("No anomalies detected based on current thresholds. Try lowering the sensitivity in the sidebar.")
-
-            st.divider()
-            st.subheader("Export Milestone Results")
-            report_csv = df[df['Is_Anomaly'] == 1].to_csv(index=False).encode('utf-8')
-            st.download_button("📥 Download Anomaly Audit (CSV)", report_csv, "FitPulse_Anomaly_Audit.csv", "text/csv")
+                st.warning("No anomalies found. Try lowering the 'AI Sensitivity' in the sidebar.")
         else:
-            st.info("Initialize Neural Hardening to run audit.")
+            st.info("Run 'Neural Hardening' first to generate your audit.")
 
 if __name__ == "__main__":
     main()
