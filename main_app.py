@@ -176,7 +176,9 @@ def main():
                     df = df.dropna(subset=['Date'])
                     agg_map = {col: ('mean' if pd.api.types.is_numeric_dtype(df[col]) and col not in ['User_ID', 'Age'] else 'first') for col in df.columns if col != 'Date'}
                     resampled = df.sort_values('Date').set_index('Date').resample(granularity).agg(agg_map).reset_index()
-                    resampled = resampled.interpolate(method='linear').ffill().bfill()
+                    
+                    # Fill missing values and then drop any remaining NaNs (required for PCA)
+                    resampled = resampled.interpolate(method='linear').ffill().bfill().dropna()
                     
                     hr_col = mapped_cols.get('Heart_Rate', 'Heart_Rate')
                     if hr_col in resampled.columns:
@@ -184,8 +186,17 @@ def main():
                         resampled['Z_Score'] = np.abs(stats.zscore(resampled[hr_col].fillna(0)))
                         resampled['Is_Anomaly'] = ((resampled['Z_Score'] > z_score_threshold) | (resampled[hr_col] > hr_threshold)).astype(int)
                     
+                    # Final clean to ensure PCA works in the next module
+                    resampled = resampled.fillna(0) 
+                    
                     st.session_state['cleaned_df'] = resampled.copy()
                     st.session_state['mapped_cols'] = mapped_cols
+                    
+                    # --- FIXED: GENERATE CLEANED FEATURE MATRIX ---
+                    # Dropping non-numeric and target columns to prevent PCA/KMeans errors
+                    feat_mat = resampled.select_dtypes(include=[np.number]).drop(columns=['Z_Score', 'Is_Anomaly'], errors='ignore')
+                    st.session_state['feature_matrix'] = feat_mat
+                    
                     status.update(label="Calibration Complete!", state="complete")
             
             if 'cleaned_df' in st.session_state:
@@ -218,14 +229,18 @@ def main():
             with tab2:
                 st.markdown("#### Lifestyle Groups")
                 if 'feature_matrix' in st.session_state:
-                    scaled = StandardScaler().fit_transform(st.session_state['feature_matrix'])
-                    pca = PCA(n_components=2).fit_transform(scaled)
-                    pdf = pd.DataFrame(pca, columns=['Dimension A', 'Dimension B'])
-                    pdf['Group'] = KMeans(n_clusters=3, random_state=42).fit(scaled).labels_.astype(str)
-                    st.plotly_chart(px.scatter(pdf, x='Dimension A', y='Dimension B', color='Group', template="plotly_dark", title="AI Behavior Grouping"), use_container_width=True)
-                    st.markdown("""<div class="insight-box"><b>AI Insight:</b> This chart groups similar days together. 
-                    One color might represent 'Lazy Days' and another 'Workout Days.' Points that don't fit into a group are 
-                    unusual lifestyle patterns.</div>""", unsafe_allow_html=True)
+                    f_matrix = st.session_state['feature_matrix']
+                    if not f_matrix.empty and len(f_matrix) > 1:
+                        scaled = StandardScaler().fit_transform(f_matrix)
+                        pca = PCA(n_components=2).fit_transform(scaled)
+                        pdf = pd.DataFrame(pca, columns=['Dimension A', 'Dimension B'])
+                        pdf['Group'] = KMeans(n_clusters=3, random_state=42, n_init='auto').fit(scaled).labels_.astype(str)
+                        st.plotly_chart(px.scatter(pdf, x='Dimension A', y='Dimension B', color='Group', template="plotly_dark", title="AI Behavior Grouping"), use_container_width=True)
+                        st.markdown("""<div class="insight-box"><b>AI Insight:</b> This chart groups similar days together. 
+                        One color might represent 'Lazy Days' and another 'Workout Days.' Points that don't fit into a group are 
+                        unusual lifestyle patterns.</div>""", unsafe_allow_html=True)
+                    else:
+                        st.warning("Not enough data to create clusters. Try reducing granularity (e.g., Hourly).")
 
             with tab3:
                 st.markdown("#### 🔮 24-Hour Predictive Forecast")
