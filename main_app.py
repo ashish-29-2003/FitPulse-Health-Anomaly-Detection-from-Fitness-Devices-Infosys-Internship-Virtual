@@ -133,7 +133,7 @@ def main():
 
     # --- SPATIAL BIO-MAPPING ---
     elif menu == "Spatial Bio-Mapping":
-        st.markdown("### 📊 Health Pattern Visualization")
+        st.markdown("### Health Pattern Visualization")
         if 'raw_df' in st.session_state:
             df = st.session_state['raw_df']
             numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
@@ -144,7 +144,7 @@ def main():
                                       color=numeric_cols[0], template="plotly_dark", height=700, color_continuous_scale='Viridis',
                                       labels={numeric_cols[0]: 'Primary Metric', numeric_cols[1]: 'Secondary Metric', numeric_cols[2]: 'Tertiary Metric'})
                 st.plotly_chart(fig_3d, use_container_width=True)
-                st.info("💡 Tip: Look for clusters! If your data forms tight groups, your health habits are consistent.")
+                st.info("Tip: Look for clusters! If your data forms tight groups, your health habits are consistent.")
 
             col1, col2 = st.columns(2)
             with col1:
@@ -164,7 +164,7 @@ def main():
 
     # --- NEURAL HARDENING ---
     elif menu == "Neural Hardening":
-        st.markdown("### 🧠 AI Health Calibration")
+        st.markdown("###  AI Health Calibration")
         if 'raw_df' in st.session_state:
             df = st.session_state['raw_df'].copy()
             mapped_cols = map_biometric_columns(df)
@@ -210,7 +210,7 @@ def main():
 
     # --- BEHAVIORAL INFERENCE ---
     elif menu == "Behavioral Inference":
-        st.markdown("### 🧬 AI Diagnostics & Future Trends")
+        st.markdown("### AI Diagnostics & Future Trends")
         if 'cleaned_df' in st.session_state:
             df = st.session_state['cleaned_df']
             tab1, tab2, tab3 = st.tabs(["Health Signature", "Activity Clusters", "Future Predictions"])
@@ -243,7 +243,7 @@ def main():
                         st.warning("Not enough data to create clusters. Try reducing granularity (e.g., Hourly).")
 
             with tab3:
-                st.markdown("#### 🔮 24-Hour Predictive Forecast")
+                st.markdown("####  24-Hour Predictive Forecast")
                 metric = st.selectbox("Predict for:", [c for c in df.select_dtypes(include=[np.number]).columns if 'Anomaly' not in c])
                 if st.button("Calculate Forecast"):
                     pdf = df[['Date', metric]].rename(columns={'Date': 'ds', metric: 'y'}).tail(200)
@@ -258,7 +258,7 @@ def main():
 
     # --- INTEGRITY AUDIT ---
     elif menu == "Integrity Audit":
-        st.markdown("### 🚨 Health Security Audit")
+        st.markdown("### Health Security Audit")
         if 'cleaned_df' in st.session_state:
             df = st.session_state['cleaned_df'].copy()
             mapped_cols = st.session_state.get('mapped_cols', {})
@@ -267,7 +267,7 @@ def main():
             df['Date'] = pd.to_datetime(df['Date'])
             anomalies = df[df['Is_Anomaly'] == 1].copy()
             
-            st.markdown("#### 🛑 Critical Safety Alerts")
+            st.markdown("#### Critical Safety Alerts")
             critical_events = df[df[hr_col] > hr_threshold]
             if not critical_events.empty:
                 st.error(f"ALERT: Detected {len(critical_events)} events where Heart Rate exceeded your {hr_threshold} BPM limit.")
@@ -289,7 +289,7 @@ def main():
                 
                 c1, c2 = st.columns([2, 1])
                 with c1:
-                    st.markdown("#### 🕒 When do Anomalies happen?")
+                    st.markdown("####  When do Anomalies happen?")
                     fig_sun = px.sunburst(anomalies, path=['Day', 'Hour'], values='Z_Score', color=hr_col, 
                                           template="plotly_dark", height=600, color_continuous_scale='Reds')
                     st.plotly_chart(fig_sun, use_container_width=True)
@@ -303,7 +303,7 @@ def main():
                 Large slices indicate recurring times when your health patterns were unusual.</div>""", unsafe_allow_html=True)
                 
                 st.divider()
-                st.download_button("📥 Download Medical Audit (CSV)", anomalies.to_csv(index=False).encode('utf-8'), "Health_Audit_Report.csv", "text/csv")
+                st.download_button("Download Medical Audit (CSV)", anomalies.to_csv(index=False).encode('utf-8'), "Health_Audit_Report.csv", "text/csv")
             else:
                 st.warning("No anomalies found. Try lowering the 'AI Sensitivity' in the sidebar.")
         else:
