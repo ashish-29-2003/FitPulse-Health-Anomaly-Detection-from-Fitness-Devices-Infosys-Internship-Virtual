@@ -160,90 +160,122 @@ def main():
 
     # --- NEURAL HARDENING (The Processing Engine) ---
     elif menu == "Neural Hardening":
-        st.markdown("###  AI Health Calibration")
+        st.markdown("### 🧠 AI Health Calibration")
         if 'raw_df' in st.session_state:
-            df = st.session_state['raw_df'].copy()
-            mapped_cols = map_biometric_columns(df)
-            granularity = st.select_slider("Time View Detail:", options=['1min', '30min', 'H', 'D'], value='H', help="H = Hourly averages. D = Daily averages.")
+            df_worker = st.session_state['raw_df'].copy()
+            mapped_cols = map_biometric_columns(df_worker)
+            granularity = st.select_slider("Time View Detail:", options=['1min', '30min', 'H', 'D'], value='H')
             
             if st.button("Start AI Calibration"):
-                with st.status("AI Analyzing Patterns...", expanded=True) as status:
-                    df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
-                    df = df.dropna(subset=['Date'])
+                with st.status("Executing Processing Engine...", expanded=True) as status:
+                    df_worker['Date'] = pd.to_datetime(df_worker['Date'], errors='coerce')
+                    df_worker = df_worker.dropna(subset=['Date'])
                     
-                    # --- MILESTONE 1: CLEANING ---
-                    numeric_features = df.select_dtypes(include=[np.number]).columns.tolist()
-                    # Store in session state to fix the UnboundLocalError
+                    numeric_features = df_worker.select_dtypes(include=[np.number]).columns.tolist()
                     st.session_state['numeric_features'] = numeric_features
+                    st.session_state['stage1_raw'] = df_worker.head(200).copy()
                     
-                    # Store Raw Copy for Overview Comparison
-                    st.session_state['raw_overview'] = df.head(100).copy()
-                    
-                    df[numeric_features] = df.groupby('User_ID', group_keys=False)[numeric_features].apply(
+                    # --- STAGE 2: CLEANING (Handling NaNs properly) ---
+                    df_worker[numeric_features] = df_worker.groupby('User_ID', group_keys=False)[numeric_features].apply(
                         lambda x: x.interpolate(method='linear').ffill().bfill()
                     )
-                    st.session_state['cleaned_overview'] = df.head(100).copy()
+                    # Safety: If interpolation left any NaNs (e.g., all values in a column were NaN), fill with 0
+                    df_worker[numeric_features] = df_worker[numeric_features].fillna(0)
+                    st.session_state['stage2_cleaned'] = df_worker.head(200).copy()
                     
-                    # --- MILESTONE 1: NORMALIZATION ---
+                    # --- STAGE 3: NORMALIZATION ---
                     scaler_mm = MinMaxScaler()
-                    df[numeric_features] = scaler_mm.fit_transform(df[numeric_features])
-                    st.session_state['normalized_overview'] = df.head(100).copy()
+                    df_norm_viz = df_worker.copy()
+                    df_norm_viz[numeric_features] = scaler_mm.fit_transform(df_worker[numeric_features])
+                    st.session_state['stage3_normalized'] = df_norm_viz.head(200).copy()
                     
-                    # Milestone 2: Resampling
-                    agg_map = {col: ('mean' if pd.api.types.is_numeric_dtype(df[col]) and col not in ['User_ID', 'Age'] else 'first') for col in df.columns if col != 'Date'}
-                    resampled = df.sort_values('Date').set_index('Date').resample(granularity).agg(agg_map).reset_index()
+                    # --- RESAMPLING & FEATURES ---
+                    agg_map = {col: ('mean' if pd.api.types.is_numeric_dtype(df_worker[col]) and col not in ['User_ID', 'Age'] else 'first') 
+                               for col in df_worker.columns if col != 'Date'}
+                    resampled = df_worker.sort_values('Date').set_index('Date').resample(granularity).agg(agg_map).reset_index()
                     
-                    # --- MILESTONE 2: FEATURE EXTRACTION ---
                     hr_col = mapped_cols.get('Heart_Rate', 'Heart_Rate')
-                    step_col = mapped_cols.get('Steps_Taken', 'Steps_Taken')
-                    
                     if hr_col in resampled.columns:
                         resampled['HR_Rolling_Avg'] = resampled[hr_col].rolling(window=7, min_periods=1).mean()
-                        resampled['Z_Score'] = np.abs(stats.zscore(resampled[hr_col].fillna(0)))
-                        resampled['Is_Anomaly'] = ((resampled['Z_Score'] > z_score_threshold) | (resampled[hr_col] > (hr_threshold/200))).astype(int)
-                    
-                    if step_col in resampled.columns:
-                        resampled['Steps_Rolling_Avg'] = resampled[step_col].rolling(window=7, min_periods=1).mean()
+                        resampled['Z_Score'] = np.abs(stats.zscore(resampled[hr_col].fillna(resampled[hr_col].mean())))
+                        resampled['Is_Anomaly'] = ((resampled['Z_Score'] > z_score_threshold) | (resampled[hr_col] > hr_threshold)).astype(int)
 
-                    resampled = resampled.fillna(0) 
+                    resampled = resampled.fillna(0)
                     st.session_state['cleaned_df'] = resampled.copy()
                     st.session_state['mapped_cols'] = mapped_cols
                     
-                    feat_mat = resampled.select_dtypes(include=[np.number]).drop(columns=['Z_Score', 'Is_Anomaly'], errors='ignore')
-                    st.session_state['feature_matrix'] = feat_mat
+                    # --- PRE-CLEANED FEATURE MATRIX FOR CLUSTERING ---
+                    # Ensure no NaNs or Infs exist in the matrix sent to the next module
+                    f_mat = resampled.select_dtypes(include=[np.number]).drop(columns=['Z_Score', 'Is_Anomaly'], errors='ignore')
+                    f_mat = f_mat.replace([np.inf, -np.inf], np.nan).fillna(0)
+                    st.session_state['feature_matrix'] = f_mat
                     
-                    status.update(label="Calibration Complete!", state="complete")
-            
-            # --- FIXED: PREPROCESSING OVERVIEW TAB ---
+                    status.update(label="Milestone 1 & 2 Complete!", state="complete")
+
+            # --- PREPROCESSING OVERVIEW ---
             if 'cleaned_df' in st.session_state and 'numeric_features' in st.session_state:
-                st.success("Calibration Successful!")
-                
+                st.success("✅ Workflow Alignment Confirmed")
                 with st.expander("🔍 Milestone 1 & 2: Preprocessing Overview", expanded=True):
-                    st.markdown("#### Data Transformation Journey")
-                    
-                    # Use the stored numeric_features from session_state
-                    available_features = st.session_state['numeric_features']
-                    view_col = st.selectbox("Select metric to track across stages:", available_features)
-                    
+                    view_col = st.selectbox("Select metric to track across stages:", st.session_state['numeric_features'])
                     c1, c2, c3 = st.columns(3)
-                    with c1:
-                        st.info("Stage 1: Raw Data")
-                        st.line_chart(st.session_state['raw_overview'][view_col].head(50))
-                        st.caption("Contains gaps and outliers.")
-                    with c2:
-                        st.warning("Stage 2: Linear Interpolation")
-                        st.line_chart(st.session_state['cleaned_overview'][view_col].head(50))
-                        st.caption("Gaps filled via time-series logic.")
-                    with c3:
-                        st.success("Stage 3: Normalization (0-1)")
-                        st.line_chart(st.session_state['normalized_overview'][view_col].head(50))
-                        st.caption("Scaled for AI Model compatibility.")
-                
-                st.markdown("""<div class="insight-box"><b>Processing Engine Outcome:</b> Your data has been cleaned and resampled. 
-                We also generated <b>7-day Rolling Averages</b> to identify long-term trends before flagging anomalies.</div>""", unsafe_allow_html=True)
+                    with c1: st.line_chart(st.session_state['stage1_raw'][view_col], color="#FF4B4B")
+                    with c2: st.line_chart(st.session_state['stage2_cleaned'][view_col], color="#4FACFE")
+                    with c3: st.line_chart(st.session_state['stage3_normalized'][view_col], color="#00F2FE")
                 st.dataframe(st.session_state['cleaned_df'].head(10), use_container_width=True)
         else:
-            st.info("Sync device data first.")
+            st.info("Please sync your device first.")
+
+    # --- BEHAVIORAL INFERENCE (Activity Clusters Fix) ---
+    elif menu == "Behavioral Inference":
+        st.markdown("### AI Diagnostics & Future Trends")
+        if 'cleaned_df' in st.session_state:
+            df = st.session_state['cleaned_df']
+            tab1, tab2, tab3 = st.tabs(["Health Signature", "Activity Clusters", "Future Predictions"])
+            
+            with tab1:
+                st.markdown("#### Normal vs. Abnormal Comparison")
+                biometrics = [c for c in ['Heart_Rate', 'Steps_Taken', 'Hours_Slept'] if c in df.columns]
+                if biometrics:
+                    scaled_df = df.copy().fillna(0)
+                    scaled_df[biometrics] = StandardScaler().fit_transform(scaled_df[biometrics])
+                    st.plotly_chart(generate_radar_chart(scaled_df, biometrics), use_container_width=True)
+
+            with tab2:
+                st.markdown("#### Lifestyle Groups")
+                if 'feature_matrix' in st.session_state:
+                    f_matrix = st.session_state['feature_matrix'].copy()
+                    
+                    # --- THE FINAL FIX FOR PCA NaN ISSUE ---
+                    # 1. Drop columns that are entirely NaN
+                    f_matrix = f_matrix.dropna(axis=1, how='all')
+                    # 2. Fill any remaining individual NaNs with 0
+                    f_matrix = f_matrix.fillna(0)
+                    
+                    if not f_matrix.empty and len(f_matrix) > 1:
+                        # 3. Standardize and check for finite values
+                        scaled = StandardScaler().fit_transform(f_matrix)
+                        scaled = np.nan_to_num(scaled) # Safety check for infinite values
+                        
+                        pca = PCA(n_components=2).fit_transform(scaled)
+                        pdf = pd.DataFrame(pca, columns=['Dimension A', 'Dimension B'])
+                        pdf['Group'] = KMeans(n_clusters=3, random_state=42, n_init='auto').fit(scaled).labels_.astype(str)
+                        st.plotly_chart(px.scatter(pdf, x='Dimension A', y='Dimension B', color='Group', template="plotly_dark"), use_container_width=True)
+                    else:
+                        st.warning("Insufficient data variation for clustering.")
+
+            with tab3:
+                st.markdown("#### 24-Hour Predictive Forecast")
+                # Ensure we only select columns that exist and have data
+                forecast_cols = [c for c in df.select_dtypes(include=[np.number]).columns if 'Anomaly' not in c and 'Z_Score' not in c]
+                metric = st.selectbox("Predict for:", forecast_cols)
+                if st.button("Calculate Forecast"):
+                    pdf = df[['Date', metric]].rename(columns={'Date': 'ds', metric: 'y'}).tail(200).dropna()
+                    if len(pdf) > 2:
+                        m = Prophet(daily_seasonality=True).fit(pdf)
+                        forecast = m.predict(m.make_future_dataframe(periods=24, freq='H'))
+                        st.plotly_chart(px.line(forecast, x='ds', y='yhat', template="plotly_dark"), use_container_width=True)
+                    else:
+                        st.error("Not enough historical data for prediction.")
 
     # --- BEHAVIORAL INFERENCE ---
     elif menu == "Behavioral Inference":
