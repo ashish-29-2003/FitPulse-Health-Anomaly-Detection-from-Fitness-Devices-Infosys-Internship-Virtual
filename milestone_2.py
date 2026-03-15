@@ -1496,42 +1496,47 @@ elif main_section == "🤖 Milestone 2: ML Pipeline":
                 sleep_forecast_success = False
                 
                 try:
-                    # Try multiple column name variations for sleep date
-                    sleep_date_col = None
-                    if "SleepDay" in sleep.columns:
-                        sleep_date_col = "SleepDay"
-                    elif "date" in sleep.columns:
-                        sleep_date_col = "date"
-                    elif "Date" in sleep.columns:
-                        sleep_date_col = "Date"
-                    elif "time" in sleep.columns:
-                        sleep_date_col = "time"
-                    
-                    # Try multiple column name variations for sleep duration
-                    sleep_value_col = None
-                    if "TotalMinutesAsleep" in sleep.columns:
-                        sleep_value_col = "TotalMinutesAsleep"
-                    elif "TotalSleepMinutes" in sleep.columns:
-                        sleep_value_col = "TotalSleepMinutes"
-                    elif "durationMinutes" in sleep.columns:
-                        sleep_value_col = "durationMinutes"
-                    
-                    if sleep_date_col and sleep_value_col:
-                        # Remove zero or negative values
-                        sleep_clean = sleep[sleep[sleep_value_col] > 0].copy()
+                    if len(sleep) > 0:
+                        # Try multiple column name variations for sleep date
+                        sleep_date_col = None
+                        if "SleepDay" in sleep.columns:
+                            sleep_date_col = "SleepDay"
+                        elif "date" in sleep.columns:
+                            sleep_date_col = "date"
+                        elif "Date" in sleep.columns:
+                            sleep_date_col = "Date"
+                        elif "time" in sleep.columns:
+                            sleep_date_col = "time"
                         
-                        if len(sleep_clean) >= 8:  # Need at least 8 days of data for Prophet
-                            forecast_data_sleep = sleep_clean.groupby(sleep_date_col)[sleep_value_col].sum().reset_index()
-                            forecast_data_sleep.columns = ['ds', 'y']
-                            forecast_data_sleep['ds'] = pd.to_datetime(forecast_data_sleep['ds'], errors='coerce')
-                            forecast_data_sleep = forecast_data_sleep.dropna(subset=['ds']).sort_values('ds').reset_index(drop=True)
+                        # For minuteSleep format: count unique minutes per date for accurate sleep duration
+                        if sleep_date_col:
+                            sleep_copy = sleep.copy()
+                            # Parse datetime and extract date
+                            sleep_copy['datetime'] = pd.to_datetime(sleep_copy[sleep_date_col], errors='coerce')
+                            sleep_copy['date_only'] = sleep_copy['datetime'].dt.date
+                            sleep_copy['minute_floor'] = sleep_copy['datetime'].dt.floor('min')
+                            sleep_copy = sleep_copy.dropna(subset=['date_only'])
                             
-                            if len(forecast_data_sleep) >= 8:
-                                m_sleep = Prophet(interval_width=0.85, daily_seasonality=False)
-                                m_sleep.fit(forecast_data_sleep)
-                                future_sleep = m_sleep.make_future_dataframe(periods=30)
-                                forecast_sleep = m_sleep.predict(future_sleep)
-                                sleep_forecast_success = True
+                            unique_sleep_dates = sleep_copy['date_only'].unique()
+                            
+                            if len(unique_sleep_dates) >= 8:  # Need at least 8 days of data
+                                # Count UNIQUE minutes per day (not total records, since multiple sleep stages per minute)
+                                sleep_daily_list = []
+                                for date in unique_sleep_dates:
+                                    date_data = sleep_copy[sleep_copy['date_only'] == date]
+                                    unique_minutes = date_data['minute_floor'].nunique()
+                                    sleep_daily_list.append({'date': pd.Timestamp(date), 'minutes': unique_minutes})
+                                
+                                sleep_daily = pd.DataFrame(sleep_daily_list)
+                                forecast_data_sleep = sleep_daily[['date', 'minutes']].sort_values('date').reset_index(drop=True)
+                                forecast_data_sleep.columns = ['ds', 'y']
+                                
+                                if len(forecast_data_sleep) >= 8:
+                                    m_sleep = Prophet(interval_width=0.85, daily_seasonality=False, changepoint_prior_scale=0.01)
+                                    m_sleep.fit(forecast_data_sleep)
+                                    future_sleep = m_sleep.make_future_dataframe(periods=30)
+                                    forecast_sleep = m_sleep.predict(future_sleep)
+                                    sleep_forecast_success = True
                 except Exception as e:
                     st.warning(f"⚠️ Sleep forecast error: {str(e)}")
                 
@@ -1668,7 +1673,8 @@ elif main_section == "🤖 Milestone 2: ML Pipeline":
                         
                         with col_sleep2:
                             last_actual_sleep = forecast_data_sleep['y'].iloc[-1]
-                            avg_hours_sleep = forecast_data_sleep['y'].mean() / 60
+                            avg_minutes_sleep = forecast_data_sleep['y'].mean()
+                            avg_hours_sleep = avg_minutes_sleep / 60
                             st.metric("⏰ Last Sleep", f"{last_actual_sleep:.0f} min", f"{avg_hours_sleep:.1f}h avg")
                         
                         with col_sleep3:
@@ -1691,17 +1697,19 @@ elif main_section == "🤖 Milestone 2: ML Pipeline":
                                                 fill='tonexty', mode='lines', line_color='rgba(0,0,0,0)',
                                                 name='85% Confidence Interval', fillcolor='rgba(156, 39, 176, 0.25)'))
                         
-                        # Sleep health reference lines
+                        # Sleep health reference lines (in minutes)
                         fig_sleep.add_hline(y=360, line_dash="dot", line_color="#FF6B6B", 
                                            annotation_text="Min (6h)", annotation_position="right")
                         fig_sleep.add_hline(y=480, line_dash="dot", line_color="#51CF66", 
                                            annotation_text="Target (8h)", annotation_position="right")
+                        fig_sleep.add_hline(y=540, line_dash="dot", line_color="#4FACFE", 
+                                           annotation_text="Ideal (9h)", annotation_position="right")
                         
                         fig_sleep.update_layout(
                             title="<b>🌙 30-Day Sleep Duration Forecast</b><br><sub>Real Fitbit Data with Health Guidelines</sub>", 
                             xaxis_title="Date", yaxis_title="Sleep Duration (minutes)",
                             template="plotly_dark", hovermode='x unified', height=650,
-                            font=dict(size=12))
+                            font=dict(size=12), xaxis_tickformat="%Y-%m-%d")
                         st.plotly_chart(fig_sleep, use_container_width=True)
                         
                         # Sleep Quality Analysis
@@ -1727,18 +1735,18 @@ elif main_section == "🤖 Milestone 2: ML Pipeline":
                         
                         with sleep_col2:
                             sleep_consistency = forecast_data_sleep['y'].std()
-                            consistency_pct = (1 - (sleep_consistency / forecast_data_sleep['y'].mean())) * 100
+                            consistency_pct = (1 - (sleep_consistency / forecast_data_sleep['y'].mean())) * 100 if forecast_data_sleep['y'].mean() > 0 else 0
                             status_consistency = "✅ Consistent" if consistency_pct > 80 else "🔄 Variable"
-                            st.metric("Consistency", f"{consistency_pct:.0f}%", status_consistency)
+                            st.metric("Consistency", f"{max(0, consistency_pct):.0f}%", status_consistency)
                         
                         with sleep_col3:
                             days_below_6h = len(forecast_data_sleep[forecast_data_sleep['y'] < 360])
-                            pct_below_6h = (days_below_6h / len(forecast_data_sleep)) * 100
+                            pct_below_6h = (days_below_6h / len(forecast_data_sleep)) * 100 if len(forecast_data_sleep) > 0 else 0
                             st.metric("Below 6h", f"{pct_below_6h:.0f}%", f"({days_below_6h} days)")
                         
                         with sleep_col4:
                             forecast_trend_sleep = forecast_sleep[forecast_sleep['ds'] > forecast_data_sleep['ds'].max()].head(7)['yhat'].mean()
-                            trend_vs_historical = ((forecast_trend_sleep - forecast_data_sleep['y'].mean()) / forecast_data_sleep['y'].mean()) * 100
+                            trend_vs_historical = ((forecast_trend_sleep - forecast_data_sleep['y'].mean()) / forecast_data_sleep['y'].mean()) * 100 if forecast_data_sleep['y'].mean() > 0 else 0
                             trend_emoji = "📈" if trend_vs_historical > 0 else "📉"
                             st.metric("7-Day Trend", f"{trend_vs_historical:+.1f}%", f"{trend_emoji} vs history")
                     else:
