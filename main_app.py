@@ -709,9 +709,23 @@ if uploaded_files:
                             st.plotly_chart(fig_ts, use_container_width=True)
                     
                     elif ts_dataset == "Sleep":
+                        sleep_ts = None
+
+                        # Support both daily sleep summary format and minuteSleep format.
                         if 'SleepDay' in sleep.columns and 'TotalMinutesAsleep' in sleep.columns:
-                            sleep_ts = sleep.sort_values('SleepDay').groupby('SleepDay')['TotalMinutesAsleep'].mean()
-                            
+                            sleep_copy = sleep.copy()
+                            sleep_copy['SleepDay'] = pd.to_datetime(sleep_copy['SleepDay'], errors='coerce')
+                            sleep_copy = sleep_copy.dropna(subset=['SleepDay'])
+                            sleep_ts = sleep_copy.sort_values('SleepDay').groupby(sleep_copy['SleepDay'].dt.date)['TotalMinutesAsleep'].mean()
+                        elif 'date' in sleep.columns and 'value' in sleep.columns:
+                            sleep_copy = sleep.copy()
+                            sleep_copy['date'] = pd.to_datetime(sleep_copy['date'], errors='coerce')
+                            sleep_copy = sleep_copy.dropna(subset=['date'])
+                            sleep_copy['date_only'] = sleep_copy['date'].dt.date
+                            sleep_copy['minute_floor'] = sleep_copy['date'].dt.floor('min')
+                            sleep_ts = sleep_copy.groupby('date_only')['minute_floor'].nunique()
+
+                        if sleep_ts is not None and len(sleep_ts) > 0:
                             fig_sleep_ts = go.Figure()
                             fig_sleep_ts.add_trace(go.Scatter(
                                 x=sleep_ts.index,
@@ -727,8 +741,10 @@ if uploaded_files:
                             )
                             fig_sleep_ts.update_xaxes(title_text="Date")
                             fig_sleep_ts.update_yaxes(title_text="Minutes")
-                            
+
                             st.plotly_chart(fig_sleep_ts, use_container_width=True)
+                        else:
+                            st.warning("Sleep chart unavailable: expected either SleepDay/TotalMinutesAsleep or date/value columns with valid timestamps.")
                     
                     else:
                         if 'Time' in hr.columns and 'Value' in hr.columns:
