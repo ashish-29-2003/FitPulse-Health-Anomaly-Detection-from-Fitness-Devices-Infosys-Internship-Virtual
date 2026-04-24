@@ -1,3 +1,0 @@
-hello world
-file handling in python
-appending new line
