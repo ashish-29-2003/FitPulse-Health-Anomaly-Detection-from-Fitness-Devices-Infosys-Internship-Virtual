@@ -1929,6 +1929,9 @@ elif main_section == "🤖 Milestone 2: ML Pipeline":
                 st.write("• TotalSteps  • Calories\n• VeryActiveMinutes  • FairlyActiveMinutes\n• LightlyActiveMinutes  • SedentaryMinutes")
             
             st.markdown("#### StandardScaler Normalization")
+            # Ensure sklearn imports available
+            StandardScaler, MinMaxScaler, KMeans, DBSCAN, PCA, TSNE = get_sklearn_imports()
+            
             scaler = StandardScaler()
             X_scaled = scaler.fit_transform(X)
             
@@ -1949,6 +1952,9 @@ elif main_section == "🤖 Milestone 2: ML Pipeline":
         """, unsafe_allow_html=True)
         
         if st.button("▶️ Execute Clustering"):
+            # Ensure sklearn imports available
+            StandardScaler, MinMaxScaler, KMeans, DBSCAN, PCA, TSNE = get_sklearn_imports()
+            
             cluster_features = daily.groupby("Id")[["TotalSteps", "Calories", "VeryActiveMinutes", 
                                                     "FairlyActiveMinutes", "LightlyActiveMinutes", 
                                                     "SedentaryMinutes"]].mean().reset_index()
@@ -2585,6 +2591,9 @@ elif main_section == "🤖 Milestone 2: ML Pipeline":
         
         if st.button("▶️ Execute Dimensionality Reduction"):
             with st.spinner("Computing visualizations..."):
+                # Ensure sklearn imports available
+                StandardScaler, MinMaxScaler, KMeans, DBSCAN, PCA, TSNE = get_sklearn_imports()
+                
                 cluster_features = daily.groupby("Id")[["TotalSteps", "Calories", "VeryActiveMinutes", 
                                                         "FairlyActiveMinutes", "LightlyActiveMinutes", 
                                                         "SedentaryMinutes"]].mean().reset_index()
