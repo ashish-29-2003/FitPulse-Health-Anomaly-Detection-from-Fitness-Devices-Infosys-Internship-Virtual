@@ -1,0 +1,12 @@
+__pycache__/
+_pycache/
+fitpulse/
+fitpulse_config.py
+fitpulse_optimizer.py
+fitpulse_watermark.py
+IMPLEMENTATION_SUMMARY.md
+implementation_summary.md
+OPTIMIZATION_GUIDE.md
+optimization_guide.md
+QUICK_START.md
+quick_start.md

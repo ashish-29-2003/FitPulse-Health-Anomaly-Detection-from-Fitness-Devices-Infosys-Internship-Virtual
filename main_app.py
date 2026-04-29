@@ -1,24 +1,34 @@
 
+# ============================================================================
+# OPTIMIZED IMPORTS - Lazy Loading for Performance
+# ============================================================================
+# Only essential imports on startup; heavy libraries loaded on-demand
+
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-import plotly.graph_objects as go
-import plotly.express as px
-from plotly.subplots import make_subplots
-from tsfresh import extract_features
-from tsfresh.feature_extraction import MinimalFCParameters
-from prophet import Prophet
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from sklearn.cluster import KMeans, DBSCAN
-from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE
 import warnings
 import time
 import io
+from functools import wraps
 
 warnings.filterwarnings("ignore")
+
+# Import performance optimization and watermark modules
+try:
+    from fitpulse_watermark import WatermarkProtection, get_watermark_display
+    from fitpulse_optimizer import (
+        LazyImporter, CacheManager, SessionStateManager, 
+        PerformanceMonitor, load_default_data_optimized, init_performance_system
+    )
+    OPTIMIZATION_ENABLED = True
+except ImportError:
+    OPTIMIZATION_ENABLED = False
+    st.warning("⚠️ Optimization modules not found. Running in compatibility mode.")
+
+# Initialize performance system
+if OPTIMIZATION_ENABLED:
+    init_performance_system()
 
 # ============================================================================
 # PAGE CONFIG & THEMES
@@ -262,18 +272,26 @@ st.markdown("""
 # ============================================================================
 # DATA LOADING WITH FILE UPLOAD SUPPORT
 # ============================================================================
+# ============================================================================
+# DATA LOADING WITH FILE UPLOAD SUPPORT (OPTIMIZED)
+# ============================================================================
+
 @st.cache_data
 def load_default_data():
-    """Load default Fitbit Files"""
-    try:
-        daily = pd.read_csv("new_notebook/dailyActivity_merged.csv")
-        hourly_s = pd.read_csv("new_notebook/hourlySteps_merged.csv")
-        hourly_i = pd.read_csv("new_notebook/hourlyIntensities_merged.csv")
-        sleep = pd.read_csv("new_notebook/minuteSleep_merged.csv")
-        hr = pd.read_csv("new_notebook/heartrate_seconds_merged.csv")
-        return daily, hourly_s, hourly_i, sleep, hr, True
-    except Exception as e:
-        return None, None, None, None, None, False
+    """Load default Fitbit Files - Optimized version"""
+    if OPTIMIZATION_ENABLED:
+        return load_default_data_optimized()
+    else:
+        # Fallback to original implementation
+        try:
+            daily = pd.read_csv("new_notebook/dailyActivity_merged.csv")
+            hourly_s = pd.read_csv("new_notebook/hourlySteps_merged.csv")
+            hourly_i = pd.read_csv("new_notebook/hourlyIntensities_merged.csv")
+            sleep = pd.read_csv("new_notebook/minuteSleep_merged.csv")
+            hr = pd.read_csv("new_notebook/heartrate_seconds_merged.csv")
+            return daily, hourly_s, hourly_i, sleep, hr, True
+        except Exception as e:
+            return None, None, None, None, None, False
 
 @st.cache_data
 def load_uploaded_data(daily_file, steps_file, intensity_file, sleep_file, hr_file):
@@ -291,33 +309,88 @@ def load_uploaded_data(daily_file, steps_file, intensity_file, sleep_file, hr_fi
 
 @st.cache_data
 def preprocess_data(daily, hourly_s, hourly_i, sleep, hr):
-    """STEP 3-5: Parse Timestamps"""
-    try:
-        if daily is not None:
-            if "ActivityDate" in daily.columns:
-                daily["ActivityDate"] = pd.to_datetime(daily["ActivityDate"], format="%m/%d/%Y", errors="coerce")
-            elif "Date" in daily.columns:
-                daily["Date"] = pd.to_datetime(daily["Date"], errors="coerce")
-        
-        if hourly_s is not None and "ActivityHour" in hourly_s.columns:
-            hourly_s["ActivityHour"] = pd.to_datetime(hourly_s["ActivityHour"], format="%m/%d/%Y %I:%M:%S %p", errors="coerce")
-        
-        if hourly_i is not None and "ActivityHour" in hourly_i.columns:
-            hourly_i["ActivityHour"] = pd.to_datetime(hourly_i["ActivityHour"], format="%m/%d/%Y %I:%M:%S %p", errors="coerce")
-        
-        if sleep is not None:
-            if "date" in sleep.columns:
-                sleep["date"] = pd.to_datetime(sleep["date"], format="%m/%d/%Y %I:%M:%S %p", errors="coerce")
-            elif "Date" in sleep.columns:
-                sleep["Date"] = pd.to_datetime(sleep["Date"], errors="coerce")
-        
-        if hr is not None and "Time" in hr.columns:
-            hr["Time"] = pd.to_datetime(hr["Time"], format="%m/%d/%Y %I:%M:%S %p", errors="coerce")
-        
-        return daily, hourly_s, hourly_i, sleep, hr
-    except Exception as e:
-        st.error(f"Error in preprocessing: {e}")
-        return daily, hourly_s, hourly_i, sleep, hr
+    """STEP 3-5: Parse Timestamps - Optimized"""
+    if OPTIMIZATION_ENABLED:
+        return CacheManager.preprocess_cached(daily, hourly_s, hourly_i, sleep, hr)
+    else:
+        # Fallback to original implementation
+        try:
+            if daily is not None:
+                if "ActivityDate" in daily.columns:
+                    daily["ActivityDate"] = pd.to_datetime(daily["ActivityDate"], format="%m/%d/%Y", errors="coerce")
+                elif "Date" in daily.columns:
+                    daily["Date"] = pd.to_datetime(daily["Date"], errors="coerce")
+            
+            if hourly_s is not None and "ActivityHour" in hourly_s.columns:
+                hourly_s["ActivityHour"] = pd.to_datetime(hourly_s["ActivityHour"], format="%m/%d/%Y %I:%M:%S %p", errors="coerce")
+            
+            if hourly_i is not None and "ActivityHour" in hourly_i.columns:
+                hourly_i["ActivityHour"] = pd.to_datetime(hourly_i["ActivityHour"], format="%m/%d/%Y %I:%M:%S %p", errors="coerce")
+            
+            if sleep is not None:
+                if "date" in sleep.columns:
+                    sleep["date"] = pd.to_datetime(sleep["date"], format="%m/%d/%Y %I:%M:%S %p", errors="coerce")
+                elif "Date" in sleep.columns:
+                    sleep["Date"] = pd.to_datetime(sleep["Date"], errors="coerce")
+            
+            if hr is not None and "Time" in hr.columns:
+                hr["Time"] = pd.to_datetime(hr["Time"], format="%m/%d/%Y %I:%M:%S %p", errors="coerce")
+            
+            return daily, hourly_s, hourly_i, sleep, hr
+        except Exception as e:
+            st.error(f"Error in preprocessing: {e}")
+            return daily, hourly_s, hourly_i, sleep, hr
+
+# ============================================================================
+# LAZY IMPORT HELPERS - Load heavy libraries on-demand
+# ============================================================================
+
+def get_plotly_imports():
+    """Get plotly imports with lazy loading."""
+    if OPTIMIZATION_ENABLED:
+        go, px, make_subplots = LazyImporter.import_plotly()
+    else:
+        import plotly.graph_objects as go
+        import plotly.express as px
+        from plotly.subplots import make_subplots
+    return go, px, make_subplots
+
+def get_matplotlib_imports():
+    """Get matplotlib imports with lazy loading."""
+    if OPTIMIZATION_ENABLED:
+        plt, sns = LazyImporter.import_matplotlib()
+    else:
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+    return plt, sns
+
+def get_sklearn_imports():
+    """Get sklearn imports with lazy loading."""
+    if OPTIMIZATION_ENABLED:
+        StandardScaler, MinMaxScaler, KMeans, DBSCAN, PCA, TSNE = LazyImporter.import_sklearn()
+    else:
+        from sklearn.preprocessing import StandardScaler, MinMaxScaler
+        from sklearn.cluster import KMeans, DBSCAN
+        from sklearn.decomposition import PCA
+        from sklearn.manifold import TSNE
+    return StandardScaler, MinMaxScaler, KMeans, DBSCAN, PCA, TSNE
+
+def get_tsfresh_imports():
+    """Get tsfresh imports with lazy loading."""
+    if OPTIMIZATION_ENABLED:
+        extract_features, MinimalFCParameters = LazyImporter.import_tsfresh()
+    else:
+        from tsfresh import extract_features
+        from tsfresh.feature_extraction import MinimalFCParameters
+    return extract_features, MinimalFCParameters
+
+def get_prophet_import():
+    """Get prophet import with lazy loading."""
+    if OPTIMIZATION_ENABLED:
+        Prophet = LazyImporter.import_prophet()
+    else:
+        from prophet import Prophet
+    return Prophet
 
 # ============================================================================
 # UNIQUE CREATIVE DASHBOARD - MAIN PAGE CONTENT
@@ -327,9 +400,21 @@ def preprocess_data(daily, hourly_s, hourly_i, sleep, hr):
 st.markdown("""
     <div class='header-main'>
         <h1>🏋️ FitPulse</h1>
-       
+        <p>Complete Health Anomaly Detection System</p>
     </div>
 """, unsafe_allow_html=True)
+
+st.markdown(
+    """
+    <div style='text-align:center; margin-top:-10px; margin-bottom:20px;'>
+        <a href='https://github.com/ashish-29-2003' target='_blank' style='text-decoration:none; color:#8fb3ff; font-weight:700; font-size:0.98em;'>
+            🐙 GitHub: ashish-29-2003
+        </a>
+        <div style='margin-top:6px; color:#b9c3d6; font-size:0.92em;'>Project created by Ashish</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 
 # File upload section with enhanced styling
@@ -527,6 +612,9 @@ if uploaded_files:
             
             overall_quality = np.mean(list(quality_metrics.values()))
             
+            # Load plotly for visualizations
+            go, px, make_subplots = get_plotly_imports()
+
             # Quality gauge visualization
             gauge_col1, gauge_col2 = st.columns([2, 1])
             
@@ -632,6 +720,10 @@ if uploaded_files:
                 'Quality': [50, 65, 75, 85, 92, 99]
             }
             
+            # Ensure plotly imports available
+            if 'go' not in locals():
+                go, px, make_subplots = get_plotly_imports()
+            
             fig_journey = go.Figure(data=go.Scatter(
                 x=journey_data['Stage'],
                 y=journey_data['Quality'],
@@ -677,6 +769,10 @@ if uploaded_files:
                     st.markdown("#### Time Series Trends Visualization")
                     
                     ts_dataset = st.selectbox("Select Time Series Dataset:", ["Daily Activity", "Sleep", "Heart Rate"], key="ts_explore")
+                    
+                    # Ensure plotly imports available
+                    if 'go' not in locals():
+                        go, px, make_subplots = get_plotly_imports()
                     
                     if ts_dataset == "Daily Activity":
                         if 'ActivityDate' in daily.columns:
@@ -905,6 +1001,27 @@ else:
         
         total_points = len(daily) + len(hourly_s) + len(hourly_i) + len(sleep) + len(hr)
         st.metric("💾 Records", f"{total_points:,}", help="Total data points")
+    
+    # Display watermark and performance metrics
+    if OPTIMIZATION_ENABLED:
+        try:
+            watermark = get_watermark_display()
+            watermark.display_watermark(location="sidebar")
+            PerformanceMonitor.display_performance_metrics()
+        except Exception as e:
+            pass  # Silently handle watermark display errors
+
+    st.sidebar.markdown(
+        """
+        <div style='margin-top:18px; padding:14px; border-radius:12px; border:1px solid rgba(102, 126, 234, 0.25); background: rgba(102, 126, 234, 0.08);'>
+            <div style='font-size:0.82em; color:#d7ddff; font-weight:700; margin-bottom:4px;'>Project Created By</div>
+            <a href='https://github.com/ashish-29-2003' target='_blank' style='text-decoration:none; color:#8fb3ff; font-weight:700;'>
+                🐙 ashish-29-2003
+            </a>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 # ============================================================================
 # MAIN SECTIONS
@@ -1100,6 +1217,9 @@ elif main_section == "📊 Milestone 1: Data Preparation":
         
         numeric_cols = daily.select_dtypes(include=[np.number]).columns.tolist()
         
+        # Ensure sklearn imports available
+        StandardScaler, MinMaxScaler, KMeans, DBSCAN, PCA, TSNE = get_sklearn_imports()
+        
         col_norm1, col_norm2 = st.columns(2)
         with col_norm1:
             st.write("**MinMax Normalization (0-1)**")
@@ -1204,6 +1324,9 @@ elif main_section == "🤖 Milestone 2: ML Pipeline":
         
         if st.button("▶️ Execute TSFresh Feature Extraction"):
             with st.spinner("🔄 Extracting TSFresh features..."):
+                # Ensure tsfresh imports available
+                extract_features, MinimalFCParameters = get_tsfresh_imports()
+                
                 hr_ts = hr.copy()
                 hr_ts["Time"] = pd.to_datetime(hr_ts["Time"], errors="coerce")
                 hr_ts = hr_ts.dropna()
@@ -1268,6 +1391,10 @@ elif main_section == "🤖 Milestone 2: ML Pipeline":
                 top_15_features = feature_stats.head(15)["Feature"].tolist()
                 corr_matrix_top = corr_matrix.loc[top_15_features, top_15_features]
                 
+                    # Ensure plotly imports available
+                if 'go' not in locals():
+                    go, px, make_subplots = get_plotly_imports()
+                
                 fig_corr = go.Figure(data=go.Heatmap(
                     z=corr_matrix_top.values,
                     x=corr_matrix_top.columns,
@@ -1311,6 +1438,9 @@ elif main_section == "🤖 Milestone 2: ML Pipeline":
         
         if st.button("▶️ Execute Prophet Forecast"):
             with st.spinner("🔄 Running Prophet forecast..."):
+                # Ensure prophet imports available
+                Prophet = get_prophet_import()
+                
                 date_col = "ActivityDate" if "ActivityDate" in daily.columns else "Date"
                 
                 # Task 13-14: Daily Steps Forecast
@@ -1436,6 +1566,10 @@ elif main_section == "🤖 Milestone 2: ML Pipeline":
                         trend_change = ((last_forecast - last_actual) / last_actual * 100) if last_actual > 0 else 0
                         st.metric("Forecast Trend", f"{last_forecast:.0f} steps", f"{trend_change:+.1f}%")
                     
+                    # Ensure plotly imports available
+                    if 'go' not in locals():
+                        go, px, make_subplots = get_plotly_imports()
+                    
                     fig_steps = go.Figure()
                     fig_steps.add_trace(go.Scatter(x=forecast_data_steps['ds'], y=forecast_data_steps['y'], 
                                             mode='lines+markers', name='Actual Steps', 
@@ -1467,6 +1601,10 @@ elif main_section == "🤖 Milestone 2: ML Pipeline":
                         trend_change_cal = ((last_forecast_cal - last_actual_cal) / last_actual_cal * 100) if last_actual_cal > 0 else 0
                         st.metric("Forecast Trend", f"{last_forecast_cal:.0f} kcal", f"{trend_change_cal:+.1f}%")
                     
+                    # Ensure plotly imports available
+                    if 'go' not in locals():
+                        go, px, make_subplots = get_plotly_imports()
+                    
                     fig_cal = go.Figure()
                     fig_cal.add_trace(go.Scatter(x=forecast_data_cal['ds'], y=forecast_data_cal['y'], 
                                             mode='lines+markers', name='Actual Calories', 
@@ -1497,6 +1635,10 @@ elif main_section == "🤖 Milestone 2: ML Pipeline":
                         last_forecast_active = forecast_active[forecast_active['ds'] > forecast_data_active['ds'].max()]['yhat'].iloc[-1]
                         trend_change_active = ((last_forecast_active - last_actual_active) / last_actual_active * 100) if last_actual_active > 0 else 0
                         st.metric("Forecast Trend", f"{last_forecast_active:.0f} mins", f"{trend_change_active:+.1f}%")
+                    
+                        # Ensure plotly imports available
+                    if 'go' not in locals():
+                        go, px, make_subplots = get_plotly_imports()
                     
                     fig_active = go.Figure()
                     fig_active.add_trace(go.Scatter(x=forecast_data_active['ds'], y=forecast_data_active['y'], 
@@ -1534,6 +1676,10 @@ elif main_section == "🤖 Milestone 2: ML Pipeline":
                             last_forecast_sleep = forecast_sleep[forecast_sleep['ds'] > forecast_data_sleep['ds'].max()]['yhat'].iloc[0]
                             trend_change_sleep = ((last_forecast_sleep - last_actual_sleep) / last_actual_sleep * 100) if last_actual_sleep > 0 else 0
                             st.metric("📈 Forecast Trend", f"{last_forecast_sleep:.0f} min", f"{trend_change_sleep:+.1f}%")
+                        
+                        # Ensure plotly imports available
+                        if 'go' not in locals():
+                            go, px, make_subplots = get_plotly_imports()
                         
                         fig_sleep = go.Figure()
                         fig_sleep.add_trace(go.Scatter(x=forecast_data_sleep['ds'], y=forecast_data_sleep['y'], 
@@ -1633,6 +1779,10 @@ elif main_section == "🤖 Milestone 2: ML Pipeline":
                             last_forecast_hr = forecast_hr[forecast_hr['ds'] > forecast_data_hr['ds'].max()]['yhat'].iloc[0]
                             trend_change_hr = ((last_forecast_hr - last_actual_hr) / last_actual_hr * 100) if last_actual_hr > 0 else 0
                             st.metric("📈 Forecast Trend", f"{last_forecast_hr:.0f} BPM", f"{trend_change_hr:+.1f}%")
+                        
+                    # Ensure plotly imports available
+                    if 'go' not in locals():
+                        go, px, make_subplots = get_plotly_imports()
                         
                         fig_hr = go.Figure()
                         fig_hr.add_trace(go.Scatter(x=forecast_data_hr['ds'], y=forecast_data_hr['y'], 
@@ -1849,6 +1999,10 @@ elif main_section == "🤖 Milestone 2: ML Pipeline":
                 })
                 
                 col_k1, col_k2 = st.columns(2)
+                
+                # Ensure plotly imports available
+                if 'px' not in locals():
+                    go, px, make_subplots = get_plotly_imports()
                 
                 with col_k1:
                     # KMeans 2D Scatter with size based on steps - Enhanced colors
@@ -2445,6 +2599,10 @@ elif main_section == "🤖 Milestone 2: ML Pipeline":
                 labels = kmeans.fit_predict(X_scaled)
                 
                 col_dim1, col_dim2 = st.columns(2)
+                
+                # Ensure plotly imports available
+                if 'px' not in locals():
+                    go, px, make_subplots = get_plotly_imports()
                 
                 with col_dim1:
                     st.write("**PCA Projection**")
