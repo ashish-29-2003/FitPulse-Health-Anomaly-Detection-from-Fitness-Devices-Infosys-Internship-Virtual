@@ -2647,6 +2647,9 @@ elif main_section == "🤖 Milestone 2: ML Pipeline":
         """, unsafe_allow_html=True)
         
         if st.button("▶️ Execute Cluster Profiling"):
+            # Ensure sklearn imports available
+            StandardScaler, MinMaxScaler, KMeans, DBSCAN, PCA, TSNE = get_sklearn_imports()
+            
             cluster_features = daily.groupby("Id")[["TotalSteps", "Calories", "VeryActiveMinutes", 
                                                     "FairlyActiveMinutes", "LightlyActiveMinutes", 
                                                     "SedentaryMinutes"]].mean().reset_index()
