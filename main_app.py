@@ -3219,6 +3219,9 @@ elif main_section == "🔍 Milestone 3: Anomaly Detection":
         if st.button("▶️ Execute Residual-Based Anomaly Detection"):
             with st.spinner("🔄 Analyzing model residuals for anomalies..."):
                 try:
+                    # Ensure prophet imports available
+                    Prophet = get_prophet_import()
+                    
                     # Prepare heart rate data
                     if "Time" in hr.columns and "Value" in hr.columns:
                         hr_clean = hr[hr['Value'] > 0].copy()
@@ -3807,7 +3810,7 @@ elif main_section == "🔍 Milestone 3: Anomaly Detection":
 # MILESTONE 4: DASHBOARD EVALUATION 
 # ============================================================================
 elif main_section == "📊 Milestone 4: Dashboard Evaluation":
-    st.header("📊 Milestone 4: Dashboard Evaluation (Week 8)")
+    st.header("📊 Milestone 4: Dashboard Evaluation ")
     st.markdown("**Complete FitPulse Analytics Platform with dashboard features for data management and reporting**")
     
     # Define hover template variable
