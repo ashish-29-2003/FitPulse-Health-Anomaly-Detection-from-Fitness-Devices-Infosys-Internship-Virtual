@@ -3594,6 +3594,9 @@ elif main_section == "🔍 Milestone 3: Anomaly Detection":
         if st.button("▶️ Execute Cluster-Based Anomaly Detection"):
             with st.spinner("🔄 Running cluster-based anomaly detection..."):
                 try:
+                    # Ensure sklearn imports available
+                    StandardScaler, MinMaxScaler, KMeans, DBSCAN, PCA, TSNE = get_sklearn_imports()
+
                     # Prepare clustering features
                     cluster_features = daily.groupby("Id")[["TotalSteps", "Calories", "VeryActiveMinutes", 
                                                             "FairlyActiveMinutes", "LightlyActiveMinutes", 
@@ -3605,7 +3608,7 @@ elif main_section == "🔍 Milestone 3: Anomaly Detection":
                     # Scale features
                     scaler = StandardScaler()
                     X_scaled = scaler.fit_transform(X)
-                    
+
                     # Apply DBSCAN
                     dbscan = DBSCAN(eps=1.5, min_samples=2)
                     labels = dbscan.fit_predict(X_scaled)
@@ -4185,3 +4188,6 @@ elif main_section == "📊 Milestone 4: Dashboard Evaluation":
             })
             
             st.dataframe(reports_history, use_container_width=True, hide_index=True)
+
+
+
