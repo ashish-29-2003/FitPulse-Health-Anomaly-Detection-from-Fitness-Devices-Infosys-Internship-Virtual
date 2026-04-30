@@ -416,7 +416,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-
 # File upload section with enhanced styling
 st.markdown("""
     <div class='section-card'>
@@ -886,6 +885,31 @@ else:
 st.markdown("---")
 
 # ============================================================================
+# SIDEBAR QUICK REFERENCE & HELP
+# ============================================================================
+
+with st.sidebar:
+    st.markdown("""
+    <div style='background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(79, 172, 254, 0.2) 100%);
+                border: 2px solid rgba(102, 126, 234, 0.4); padding: 15px; border-radius: 12px; margin-bottom: 20px;'>
+        <strong style='font-size: 1.1em; color: #4FACFE;'>⚡ Quick Start</strong><br><br>
+        <strong style='color: #e0e0e0;'>Need datasets?</strong><br>
+        <a href='https://drive.google.com/drive/folders/1MCfuTQ-OBHtvxsD7Pu31RrEosZOY87Ia?usp=sharing' 
+           target='_blank' 
+           style='color:#4FACFE; text-decoration:none; font-weight:700;'>
+           📂 Download Sample Data
+        </a>
+        <br><br>
+        <strong style='color: #e0e0e0;'>Quick Steps:</strong><br>
+        <small style='color: #b9c3d6;'>
+        1️⃣ Download 5 CSV files<br>
+        2️⃣ Upload them above<br>
+        3️⃣ Explore features below
+        </small>
+    </div>
+    """, unsafe_allow_html=True)
+
+# ============================================================================
 # SIDEBAR NAVIGATION (Only shown if data is ready)
 # ============================================================================
 
@@ -1022,6 +1046,37 @@ else:
         """,
         unsafe_allow_html=True,
     )
+    
+    # Add Help Section at the end of sidebar
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("""
+    <div style='background: linear-gradient(135deg, rgba(76, 175, 80, 0.15) 0%, rgba(56, 142, 60, 0.15) 100%);
+                border: 1px solid rgba(76, 175, 80, 0.3); padding: 12px; border-radius: 10px; margin-top: 20px;'>
+        <h4 style='color: #4CAF50; margin: 0 0 10px 0;'>❓ Help & Documentation</h4>
+        <small style='color: #a8d5a8; line-height: 1.6;'>
+        <strong>📝 Dataset Files Needed:</strong><br>
+        • dailyActivity_merged.csv<br>
+        • hourlySteps_merged.csv<br>
+        • hourlyIntensities_merged.csv<br>
+        • minuteSleep_merged.csv<br>
+        • heartrate_seconds_merged.csv<br><br>
+        <strong>📥 Need Sample Data?</strong><br>
+        <a href='https://drive.google.com/drive/folders/1MCfuTQ-OBHtvxsD7Pu31RrEosZOY87Ia?usp=sharing' 
+           target='_blank' 
+           style='color:#81c784; text-decoration:none; font-weight:700;'>
+           Download from Google Drive →
+        </a>
+        <br><br>
+        <strong>🔧 Features:</strong><br>
+        ✅ Data Cleaning & Normalization<br>
+        ✅ Time Series Feature Extraction<br>
+        ✅ Anomaly Detection (IQR, LOF, Prophet)<br>
+        ✅ Clustering Analysis<br>
+        ✅ Trend Forecasting<br>
+        ✅ Health Insights & Reports
+        </small>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ============================================================================
 # MAIN SECTIONS
