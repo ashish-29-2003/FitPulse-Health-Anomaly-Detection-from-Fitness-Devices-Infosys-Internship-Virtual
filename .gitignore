@@ -10,3 +10,11 @@ OPTIMIZATION_GUIDE.md
 optimization_guide.md
 QUICK_START.md
 quick_start.md
+
+# Public-safe exclusions
+models/
+new_notebook/*.csv
+new_notebook/*.ipynb
+notebook/*.csv
+notebook/*.ipynb
+project manual.pdf
