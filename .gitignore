@@ -18,3 +18,5 @@ new_notebook/*.ipynb
 notebook/*.csv
 notebook/*.ipynb
 project manual.pdf
+devcontainer.json
+
