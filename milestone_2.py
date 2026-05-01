@@ -1159,7 +1159,7 @@ elif main_section == "📊 Milestone 1: Data Preparation":
         # Apply forward fill then backward fill
         for col in numeric_cols:
             if col not in ['Id']:
-                master[col] = master[col].fillna(method='ffill').fillna(method='bfill')
+                master[col] = master[col].ffill().bfill()
         
         # Fill any remaining NaN with 0 (for cases where no fill was possible)
         master[numeric_cols] = master[numeric_cols].fillna(0)
