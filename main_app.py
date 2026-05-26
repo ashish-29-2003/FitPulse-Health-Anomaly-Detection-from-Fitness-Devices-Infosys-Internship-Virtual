@@ -1,8 +1,8 @@
 
 # ============================================================================
-# OPTIMIZED IMPORTS - Lazy Loading for Performance
+#IMPORTS
 # ============================================================================
-# Only essential imports on startup; heavy libraries loaded on-demand
+#
 
 import streamlit as st
 import pandas as pd
